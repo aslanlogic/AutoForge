@@ -7,7 +7,9 @@ TEMPLATE = app
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    signaldialog.cpp
 
 HEADERS += \
-    mainwindow.h
+    mainwindow.h \
+    signaldialog.h
