@@ -9,6 +9,7 @@
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTableWidget>
@@ -19,10 +20,11 @@
 #include <cmath>
 #include <limits>
 
-SignalDialog::SignalDialog(const QString &name, QWidget *parent)
+SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingNames, QWidget *parent)
     : QDialog(parent)
+    , m_existingNames(existingNames)
 {
-    setWindowTitle(QString("Signal '%1'").arg(name));
+    setWindowTitle(QString("Signal '%1'").arg(signal.name));
 
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(createDefinitionTab(), "Definition");
@@ -37,8 +39,61 @@ SignalDialog::SignalDialog(const QString &name, QWidget *parent)
     layout->addWidget(m_tabs);
     layout->addWidget(buttons);
 
-    m_nameEdit->setText(name);
+    // Combo box item order matches the enum order in Signal.
+    // Value type goes before length: choosing a float type overwrites the length.
+    const QLocale c = QLocale::c();
+    m_nameEdit->setText(signal.name);
+    m_valueTypeCombo->setCurrentIndex(static_cast<int>(signal.valueType));
+    m_lengthEdit->setText(QString::number(signal.length));
+    m_byteOrderCombo->setCurrentIndex(static_cast<int>(signal.byteOrder));
+    m_unitEdit->setText(signal.unit);
+    m_initValueEdit->setText(c.toString(signal.initialValue, 'g', QLocale::FloatingPointShortest));
+    m_factorEdit->setText(c.toString(signal.factor, 'g', QLocale::FloatingPointShortest));
+    m_offsetEdit->setText(c.toString(signal.offset, 'g', QLocale::FloatingPointShortest));
+    m_minimumEdit->setText(c.toString(signal.minimum, 'g', QLocale::FloatingPointShortest));
+    m_maximumEdit->setText(c.toString(signal.maximum, 'g', QLocale::FloatingPointShortest));
+    m_commentEdit->setPlainText(signal.comment);
+
     resize(640, 520);
+}
+
+Signal SignalDialog::signal() const
+{
+    const QLocale c = QLocale::c();
+    Signal signal;
+    signal.name = m_nameEdit->text().trimmed();
+    signal.length = m_lengthEdit->text().toInt();
+    signal.byteOrder = static_cast<Signal::ByteOrder>(m_byteOrderCombo->currentIndex());
+    signal.valueType = static_cast<Signal::ValueType>(m_valueTypeCombo->currentIndex());
+    signal.unit = m_unitEdit->text().trimmed();
+    signal.initialValue = c.toDouble(m_initValueEdit->text());
+    signal.factor = c.toDouble(m_factorEdit->text());
+    signal.offset = c.toDouble(m_offsetEdit->text());
+    signal.minimum = c.toDouble(m_minimumEdit->text());
+    signal.maximum = c.toDouble(m_maximumEdit->text());
+    signal.comment = m_commentEdit->toPlainText();
+    return signal;
+}
+
+void SignalDialog::accept()
+{
+    const QString name = m_nameEdit->text().trimmed();
+
+    QString error;
+    if (name.isEmpty())
+        error = "Please enter a name for the signal.";
+    else if (m_existingNames.contains(name))
+        error = QString("A signal named '%1' already exists.").arg(name);
+
+    if (!error.isEmpty()) {
+        QMessageBox::warning(this, windowTitle(), error);
+        m_tabs->setCurrentIndex(0);
+        m_nameEdit->setFocus();
+        m_nameEdit->selectAll();
+        return;
+    }
+
+    QDialog::accept();
 }
 
 QWidget *SignalDialog::createDefinitionTab()

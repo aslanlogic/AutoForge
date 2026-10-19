@@ -1,7 +1,10 @@
 #ifndef SIGNALDIALOG_H
 #define SIGNALDIALOG_H
 
+#include "signal.h"
+
 #include <QDialog>
+#include <QStringList>
 
 class QComboBox;
 class QLineEdit;
@@ -15,13 +18,20 @@ class SignalDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SignalDialog(const QString &name, QWidget *parent = nullptr);
+    // existingNames: names already taken by other signals; OK is refused for these.
+    SignalDialog(const Signal &signal, const QStringList &existingNames, QWidget *parent = nullptr);
+
+    Signal signal() const;
+
+public slots:
+    void accept() override;
 
 private:
     QWidget *createDefinitionTab();
     QWidget *createValueDescriptionsTab();
     QWidget *createCommentTab();
 
+    QStringList m_existingNames;
     QTabWidget *m_tabs = nullptr;
 
     // Definition tab

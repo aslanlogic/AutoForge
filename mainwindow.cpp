@@ -1,11 +1,13 @@
 #include "mainwindow.h"
+#include "database.h"
+#include "navigationmodel.h"
 #include "signaldialog.h"
 
 #include <QIcon>
 #include <QMenu>
 #include <QSplitter>
 #include <QStyle>
-#include <QTreeWidget>
+#include <QTreeView>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,6 +15,8 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle("FrameForge");
     resize(1024, 768);
 
+    m_database = new Database(this);
+    m_navigationModel = new NavigationModel(m_database, this);
     setupLayout();
 }
 
@@ -22,16 +26,17 @@ void MainWindow::setupLayout()
 {
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
-    // Left pane: QTreeWidget scrolls on its own when content overflows.
-    m_navigationTree = new QTreeWidget(m_splitter);
+    // Left pane: QTreeView scrolls on its own when content overflows.
+    m_navigationTree = new QTreeView(m_splitter);
     m_navigationTree->setHeaderHidden(true);
-    const QStringList headings = {"Network", "Network Nodes", "Messages", "Signals"};
-    for (const QString &heading : headings)
-        new QTreeWidgetItem(m_navigationTree, {heading});
-    m_signalsItem = m_navigationTree->findItems("Signals", Qt::MatchExactly).value(0);
+    m_navigationTree->setModel(m_navigationModel);
+
+    // Show newly added items by expanding their heading.
+    connect(m_navigationModel, &NavigationModel::rowsInserted,
+            m_navigationTree, &QTreeView::expand);
 
     m_navigationTree->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_navigationTree, &QTreeWidget::customContextMenuRequested,
+    connect(m_navigationTree, &QTreeView::customContextMenuRequested,
             this, &MainWindow::showNavigationContextMenu);
 
     // Right pane: will show the definition of the selected item.
@@ -50,8 +55,8 @@ void MainWindow::setupLayout()
 
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
 {
-    QTreeWidgetItem *item = m_navigationTree->itemAt(pos);
-    if (!item || item != m_signalsItem)
+    const QModelIndex index = m_navigationTree->indexAt(pos);
+    if (index != m_navigationModel->categoryIndex(NavigationModel::Signals))
         return;
 
     QMenu menu(this);
@@ -63,6 +68,19 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
 
 void MainWindow::createNewSignal()
 {
-    SignalDialog dialog("New_Signal", this);
-    dialog.exec();
+    const QStringList existingNames = m_database->signalNames();
+
+    // Pick the first free default name: New_Signal_1, New_Signal_2, ...
+    Signal newSignal;
+    int number = 1;
+    do {
+        newSignal.name = QString("New_Signal_%1").arg(number++);
+    } while (existingNames.contains(newSignal.name));
+
+    SignalDialog dialog(newSignal, existingNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    // The tree updates itself: Database -> NavigationModel -> QTreeView.
+    m_database->addSignal(dialog.signal());
 }

@@ -3,9 +3,10 @@
 
 #include <QMainWindow>
 
+class Database;
+class NavigationModel;
 class QSplitter;
-class QTreeWidget;
-class QTreeWidgetItem;
+class QTreeView;
 class QWidget;
 
 class MainWindow : public QMainWindow
@@ -23,9 +24,11 @@ private slots:
 private:
     void setupLayout();
 
+    Database *m_database = nullptr;
+    NavigationModel *m_navigationModel = nullptr;
+
     QSplitter *m_splitter = nullptr;
-    QTreeWidget *m_navigationTree = nullptr;
-    QTreeWidgetItem *m_signalsItem = nullptr;
+    QTreeView *m_navigationTree = nullptr;
     QWidget *m_definitionArea = nullptr;
 };
 
