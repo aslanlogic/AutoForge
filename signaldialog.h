@@ -45,6 +45,7 @@ private:
 
 private slots:
     void onValueTypeChanged(const QString &text);
+    void calculateMinimumMaximum();
 
 };
 

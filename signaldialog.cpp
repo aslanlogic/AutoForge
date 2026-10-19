@@ -15,6 +15,10 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 SignalDialog::SignalDialog(const QString &name, QWidget *parent)
     : QDialog(parent)
 {
@@ -69,6 +73,7 @@ QWidget *SignalDialog::createDefinitionTab()
     m_maximumEdit = makeNumberEdit("0");
 
     auto *calculateButton = new QPushButton("Calculate minimum and maximum");
+    connect(calculateButton, &QPushButton::clicked, this, &SignalDialog::calculateMinimumMaximum);
 
     m_valueTableCombo = new QComboBox;
     m_valueTableCombo->addItem("<none>");
@@ -148,4 +153,39 @@ void SignalDialog::onValueTypeChanged(const QString &text)
     } else {
         m_lengthEdit->setDisabled(false);
     }
+}
+
+void SignalDialog::calculateMinimumMaximum()
+{
+    const QLocale c = QLocale::c();
+    bool lengthOk = false, factorOk = false, offsetOk = false;
+    const int length = m_lengthEdit->text().toInt(&lengthOk);
+    const double factor = c.toDouble(m_factorEdit->text(), &factorOk);
+    const double offset = c.toDouble(m_offsetEdit->text(), &offsetOk);
+    if (!lengthOk || !factorOk || !offsetOk || length < 1 || length > 64)
+        return;
+
+    // Range of the raw value as stored in the frame.
+    double rawMin = 0.0;
+    double rawMax = 0.0;
+    const QString valueType = m_valueTypeCombo->currentText();
+    if (valueType == "Signed") {
+        rawMin = -std::ldexp(1.0, length - 1);
+        rawMax = std::ldexp(1.0, length - 1) - 1.0;
+    } else if (valueType == "Unsigned") {
+        rawMin = 0.0;
+        rawMax = std::ldexp(1.0, length) - 1.0;
+    } else if (valueType == "IEEE Float") {
+        rawMin = -std::numeric_limits<float>::max();
+        rawMax = std::numeric_limits<float>::max();
+    } else if (valueType == "IEEE Double") {
+        rawMin = -std::numeric_limits<double>::max();
+        rawMax = std::numeric_limits<double>::max();
+    }
+
+    // physical = raw * factor + offset; a negative factor swaps the ends.
+    const double a = rawMin * factor + offset;
+    const double b = rawMax * factor + offset;
+    m_minimumEdit->setText(c.toString(std::min(a, b), 'g', QLocale::FloatingPointShortest));
+    m_maximumEdit->setText(c.toString(std::max(a, b), 'g', QLocale::FloatingPointShortest));
 }
