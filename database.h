@@ -5,6 +5,7 @@
 #include "network.h"
 #include "node.h"
 #include "signal.h"
+#include "valuetable.h"
 
 #include <QObject>
 #include <QStringList>
@@ -63,13 +64,26 @@ public:
     QVector<int> messagesTransmittedBy(int nodeId) const;
     QVector<int> messagesReceivedBy(int nodeId) const;
 
+    // Value tables: same idea again.
+    const QVector<ValueTable> &allValueTables() const;
+    QStringList valueTableNames() const;
+    const ValueTable *findValueTable(int id) const;
+    int indexOfValueTable(int id) const;
+    int addValueTable(ValueTable valueTable);
+    bool updateValueTable(const ValueTable &valueTable);
+    // Deletes the value table. One that a signal still uses is not deleted:
+    // returns false then, and also if there is no value table with this id.
+    bool removeValueTable(int id);
+    // Names of the signals that use this value table.
+    QStringList signalsUsingValueTable(int id) const;
+
     // Throws away everything and stores these instead, each with a new unique id.
-    // Used when a file is opened. The signals and nodes must come with ids that
-    // are unique among them; the messages' signal mappings, transmitter and
-    // receivers refer to those ids and are renumbered along with them.
-    // References to unknown signals or nodes are dropped.
+    // Used when a file is opened. The signals, nodes and value tables must come
+    // with ids that are unique among their kind; the references to them (the
+    // messages' signal mappings, transmitter and receivers, the signals' value
+    // table) are renumbered along with them. References to unknown ids are dropped.
     void replaceAll(const Network &newNetwork, QVector<Signal> newSignals, QVector<Message> newMessages,
-                    QVector<Node> newNodes);
+                    QVector<Node> newNodes, QVector<ValueTable> newValueTables);
 
 signals:
     void networkChanged();
@@ -91,6 +105,11 @@ signals:
     void nodeChanged(int id);
     void nodeAboutToBeRemoved(int index);
     void nodeRemoved(int id);
+    void valueTableAboutToBeAdded(int index);
+    void valueTableAdded(int id);
+    void valueTableChanged(int id);
+    void valueTableAboutToBeRemoved(int index);
+    void valueTableRemoved(int id);
     // Emitted before and after everything is replaced at once (see replaceAll()).
     void aboutToBeReset();
     void wasReset();
@@ -100,7 +119,8 @@ private:
     QVector<Signal> m_signals;
     QVector<Message> m_messages;
     QVector<Node> m_nodes;
-    int m_nextId = 1; // shared by signals, messages and nodes, so every id is unique
+    QVector<ValueTable> m_valueTables;
+    int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };
 
 #endif // DATABASE_H

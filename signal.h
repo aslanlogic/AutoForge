@@ -22,6 +22,7 @@ struct Signal
     double offset = 0.0;
     double minimum = 0.0;
     double maximum = 0.0;
+    int valueTableId = 0; // ValueTable::id that names this signal's raw values; 0 = none
     QString comment;
 };
 

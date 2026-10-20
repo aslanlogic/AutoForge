@@ -1,5 +1,5 @@
 #include "signalpropertieswidget.h"
-#include "signal.h"
+#include "database.h"
 
 #include <QHeaderView>
 #include <QLocale>
@@ -21,7 +21,17 @@ SignalPropertiesWidget::SignalPropertiesWidget(QWidget *parent)
     layout->addWidget(m_table);
 }
 
-void SignalPropertiesWidget::showSignal(const Signal &signal)
+namespace {
+
+QString valueTableName(const Signal &signal, const Database &database)
+{
+    const ValueTable *valueTable = database.findValueTable(signal.valueTableId);
+    return valueTable ? valueTable->name : QString("<none>");
+}
+
+} // namespace
+
+void SignalPropertiesWidget::showSignal(const Signal &signal, const Database &database)
 {
     auto number = [](double value) {
         return QLocale::c().toString(value, 'g', QLocale::FloatingPointShortest);
@@ -38,6 +48,7 @@ void SignalPropertiesWidget::showSignal(const Signal &signal)
         {"Offset", number(signal.offset)},
         {"Minimum", number(signal.minimum)},
         {"Maximum", number(signal.maximum)},
+        {"Value Table", valueTableName(signal, database)},
         {"Comment", signal.comment},
     };
 

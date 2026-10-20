@@ -23,6 +23,11 @@ SignalTableModel::SignalTableModel(Database *database, QObject *parent)
     connect(m_database, &Database::signalRemoved, this, [this] {
         endRemoveRows();
     });
+    // The Value Table column shows the table's name.
+    connect(m_database, &Database::valueTableChanged, this, [this] {
+        if (rowCount() > 0)
+            emit dataChanged(index(0, ValueTableName), index(rowCount() - 1, ValueTableName));
+    });
     connect(m_database, &Database::aboutToBeReset, this, &SignalTableModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &SignalTableModel::endResetModel);
 }
@@ -61,6 +66,10 @@ QVariant SignalTableModel::data(const QModelIndex &index, int role) const
     case Offset:       return number(signal.offset);
     case Minimum:      return number(signal.minimum);
     case Maximum:      return number(signal.maximum);
+    case ValueTableName: {
+        const ValueTable *valueTable = m_database->findValueTable(signal.valueTableId);
+        return valueTable ? valueTable->name : QString();
+    }
     case Comment:      return signal.comment;
     }
     return QVariant();
@@ -73,6 +82,6 @@ QVariant SignalTableModel::headerData(int section, Qt::Orientation orientation, 
 
     static const char *const headers[ColumnCount] = {
         "Name", "Length [Bit]", "Byte Order", "Value Type", "Unit", "Init. Value",
-        "Factor", "Offset", "Minimum", "Maximum", "Comment"};
+        "Factor", "Offset", "Minimum", "Maximum", "Value Table", "Comment"};
     return QString(headers[section]);
 }

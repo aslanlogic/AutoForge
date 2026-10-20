@@ -6,6 +6,8 @@ TARGET = FrameForge
 TEMPLATE = app
 
 SOURCES += \
+    consistencychecker.cpp \
+    consistencydialog.cpp \
     database.cpp \
     main.cpp \
     mainwindow.cpp \
@@ -23,9 +25,14 @@ SOURCES += \
     signaldialog.cpp \
     signalpropertieswidget.cpp \
     signaltablemodel.cpp \
+    valuetabledialog.cpp \
+    valuetablepropertieswidget.cpp \
+    valuetabletablemodel.cpp \
     xmlstorage.cpp
 
 HEADERS += \
+    consistencychecker.h \
+    consistencydialog.h \
     database.h \
     message.h \
     mainwindow.h \
@@ -47,6 +54,10 @@ HEADERS += \
     signaldialog.h \
     signalpropertieswidget.h \
     signaltablemodel.h \
+    valuetable.h \
+    valuetabledialog.h \
+    valuetablepropertieswidget.h \
+    valuetabletablemodel.h \
     xmlstorage.h
 
 RESOURCES += \

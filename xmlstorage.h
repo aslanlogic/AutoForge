@@ -12,6 +12,12 @@ class Database;
 //     <Network protocol="can">                      (can, canfd, uart or udp)
 //       <Can bitrate="500000" samplePoint="87.5"/>  (only the active protocol's settings)
 //     </Network>
+//     <ValueTables>
+//       <ValueTable name="OnOff">
+//         <Value value="0" description="Off"/>
+//         <Value value="1" description="On"/>
+//       </ValueTable>
+//     </ValueTables>
 //     <Nodes>
 //       <Node name="EngineECU">
 //         <Comment>Engine control unit</Comment>

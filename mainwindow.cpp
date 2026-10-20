@@ -1,4 +1,6 @@
 #include "mainwindow.h"
+#include "consistencychecker.h"
+#include "consistencydialog.h"
 #include "database.h"
 #include "messagedialog.h"
 #include "messagepropertieswidget.h"
@@ -13,6 +15,9 @@
 #include "signaldialog.h"
 #include "signalpropertieswidget.h"
 #include "signaltablemodel.h"
+#include "valuetabledialog.h"
+#include "valuetablepropertieswidget.h"
+#include "valuetabletablemodel.h"
 #include "xmlstorage.h"
 
 #include <QCloseEvent>
@@ -55,6 +60,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::nodeChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::nodeRemoved, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::networkChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableRemoved, this, [this] { setWindowModified(true); });
 }
 
 void MainWindow::setupMenus()
@@ -66,6 +74,10 @@ void MainWindow::setupMenus()
                         this, &MainWindow::saveFile, QKeySequence::Save);
     fileMenu->addAction(QIcon::fromTheme("document-save-as"), "Save &As...",
                         this, &MainWindow::saveFileAs, QKeySequence("Ctrl+Shift+S"));
+
+    QMenu *toolsMenu = menuBar()->addMenu("&Tools");
+    toolsMenu->addAction(QIcon::fromTheme("tools-check-spelling"), "&Consistency Check...",
+                         this, &MainWindow::checkConsistency, QKeySequence("F7"));
 }
 
 MainWindow::~MainWindow() = default;
@@ -117,12 +129,15 @@ void MainWindow::setupLayout()
     m_signalProperties = new SignalPropertiesWidget;
     m_messageProperties = new MessagePropertiesWidget;
     m_nodeProperties = new NodePropertiesWidget;
+    m_valueTableProperties = new ValueTablePropertiesWidget;
     m_signalTableModel = new SignalTableModel(m_database, this);
     m_messageTableModel = new MessageTableModel(m_database, this);
     m_nodeTableModel = new NodeTableModel(m_database, this);
+    m_valueTableTableModel = new ValueTableTableModel(m_database, this);
     m_signalTable = createSortableTable(m_signalTableModel, SignalTableModel::SortRole);
     m_messageTable = createSortableTable(m_messageTableModel, MessageTableModel::SortRole);
     m_nodeTable = createSortableTable(m_nodeTableModel, NodeTableModel::SortRole);
+    m_valueTableTable = createSortableTable(m_valueTableTableModel, ValueTableTableModel::SortRole);
     m_rightPane->addWidget(m_emptyPage);
     m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_signalProperties);
@@ -131,6 +146,8 @@ void MainWindow::setupLayout()
     m_rightPane->addWidget(m_messageTable);
     m_rightPane->addWidget(m_nodeProperties);
     m_rightPane->addWidget(m_nodeTable);
+    m_rightPane->addWidget(m_valueTableProperties);
+    m_rightPane->addWidget(m_valueTableTable);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
 
@@ -147,6 +164,9 @@ void MainWindow::setupLayout()
     connect(m_database, &Database::nodeChanged, this, &MainWindow::refreshRightPane);
     connect(m_database, &Database::nodeRemoved, this, &MainWindow::refreshRightPane);
     connect(m_database, &Database::networkChanged, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::valueTableAdded, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::valueTableChanged, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::valueTableRemoved, this, &MainWindow::refreshRightPane);
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
         showView(View::Empty);
@@ -218,12 +238,16 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
             menu.addAction(newIcon, "New", this, &MainWindow::createNewMessage);
         else if (index.row() == NavigationModel::NetworkNodes)
             menu.addAction(newIcon, "New", this, &MainWindow::createNewNode);
+        else if (index.row() == NavigationModel::ValueTables)
+            menu.addAction(newIcon, "New", this, &MainWindow::createNewValueTable);
     } else if (kind == NavigationModel::SignalItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSignal(id); });
     } else if (kind == NavigationModel::MessageItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteMessage(id); });
     } else if (kind == NavigationModel::NodeItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteNode(id); });
+    } else if (kind == NavigationModel::ValueTableItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteValueTable(id); });
     }
 
     if (!menu.isEmpty())
@@ -241,7 +265,7 @@ void MainWindow::createNewSignal()
         newSignal.name = QString("New_Signal_%1").arg(number++);
     } while (existingNames.contains(newSignal.name));
 
-    SignalDialog dialog(newSignal, existingNames, this);
+    SignalDialog dialog(newSignal, existingNames, m_database->allValueTables(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -269,6 +293,9 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &filterIndex)
     case NavigationModel::NodeItem:
         editNode(id);
         break;
+    case NavigationModel::ValueTableItem:
+        editValueTable(id);
+        break;
     }
 }
 
@@ -283,7 +310,7 @@ void MainWindow::editSignal(int id)
     QStringList otherNames = m_database->signalNames();
     otherNames.removeOne(signal.name);
 
-    SignalDialog dialog(signal, otherNames, this);
+    SignalDialog dialog(signal, otherNames, m_database->allValueTables(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -431,6 +458,69 @@ void MainWindow::editNetwork()
         m_database->setNetwork(dialog.network());
 }
 
+void MainWindow::createNewValueTable()
+{
+    const QStringList existingNames = m_database->valueTableNames();
+
+    // Pick the first free default name: New_Value_Table_1, New_Value_Table_2, ...
+    ValueTable newValueTable;
+    int number = 1;
+    do {
+        newValueTable.name = QString("New_Value_Table_%1").arg(number++);
+    } while (existingNames.contains(newValueTable.name));
+
+    ValueTableDialog dialog(newValueTable, existingNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addValueTable(dialog.valueTable());
+}
+
+void MainWindow::editValueTable(int id)
+{
+    const ValueTable *stored = m_database->findValueTable(id);
+    if (!stored)
+        return;
+    const ValueTable valueTable = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->valueTableNames();
+    otherNames.removeOne(valueTable.name);
+
+    ValueTableDialog dialog(valueTable, otherNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateValueTable(dialog.valueTable());
+}
+
+void MainWindow::deleteValueTable(int id)
+{
+    const ValueTable *valueTable = m_database->findValueTable(id);
+    if (!valueTable)
+        return;
+
+    // A value table that a signal uses cannot be deleted (Database refuses it too).
+    const QStringList usedBy = m_database->signalsUsingValueTable(id);
+    if (!usedBy.isEmpty()) {
+        QMessageBox::information(this, "Delete Value Table",
+                                 QString("The value table '%1' cannot be deleted because these "
+                                         "signals use it:\n%2\n\nChoose another value table for them first.")
+                                     .arg(valueTable->name, usedBy.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the value table '%1'?").arg(valueTable->name);
+    if (QMessageBox::question(this, "Delete Value Table", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeValueTable(id);
+}
+
+void MainWindow::checkConsistency()
+{
+    ConsistencyDialog dialog(ConsistencyChecker::check(*m_database), this);
+    dialog.exec();
+}
+
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
 {
     const QModelIndex current = m_navigationFilter->mapToSource(filterCurrent);
@@ -447,6 +537,7 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
         case NavigationModel::NetworkNodes: showTable(m_nodeTable); break;
         case NavigationModel::Messages:     showTable(m_messageTable); break;
         case NavigationModel::Signals:      showTable(m_signalTable); break;
+        case NavigationModel::ValueTables:  showTable(m_valueTableTable); break;
         }
         break;
     case NavigationModel::SignalItem:
@@ -461,6 +552,9 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
     case NavigationModel::NodeTxFolder: // the node view lists its Tx and Rx messages
     case NavigationModel::NodeRxFolder:
         showView(View::Node, id);
+        break;
+    case NavigationModel::ValueTableItem:
+        showView(View::ValueTable, id);
         break;
     }
 }
@@ -491,7 +585,7 @@ void MainWindow::refreshRightPane()
         return;
     case View::Signal:
         if (const Signal *signal = m_database->findSignal(m_shownId)) {
-            m_signalProperties->showSignal(*signal);
+            m_signalProperties->showSignal(*signal, *m_database);
             m_rightPane->setCurrentWidget(m_signalProperties);
             return;
         }
@@ -507,6 +601,13 @@ void MainWindow::refreshRightPane()
         if (const Node *node = m_database->findNode(m_shownId)) {
             m_nodeProperties->showNode(*node, *m_database);
             m_rightPane->setCurrentWidget(m_nodeProperties);
+            return;
+        }
+        break;
+    case View::ValueTable:
+        if (const ValueTable *valueTable = m_database->findValueTable(m_shownId)) {
+            m_valueTableProperties->showValueTable(*valueTable, *m_database);
+            m_rightPane->setCurrentWidget(m_valueTableProperties);
             return;
         }
         break;

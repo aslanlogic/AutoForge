@@ -9,6 +9,8 @@
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 
+#include <algorithm>
+
 namespace {
 
 const QString FormatVersion = "1";
@@ -224,6 +226,46 @@ Node readNode(QXmlStreamReader &reader)
             reader.skipCurrentElement();
     }
     return node;
+}
+
+// Reads one <ValueTable> element. On a problem it calls reader.raiseError().
+ValueTable readValueTable(QXmlStreamReader &reader)
+{
+    ValueTable valueTable;
+    valueTable.name = reader.attributes().value("name").toString().trimmed();
+    if (valueTable.name.isEmpty())
+        reader.raiseError("A value table has no name.");
+
+    QSet<qint64> values;
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Value")) {
+            // value is written in decimal; hex with 0x in front is accepted too.
+            const QString text = reader.attributes().value("value").toString().trimmed();
+            ValueTable::Entry entry;
+            bool ok = false;
+            if (text.startsWith("0x", Qt::CaseInsensitive))
+                entry.value = text.mid(2).toLongLong(&ok, 16);
+            else
+                entry.value = text.toLongLong(&ok, 10);
+            entry.description = reader.attributes().value("description").toString();
+            if (!ok)
+                reader.raiseError(QString("Value table '%1': '%2' is not a whole number.").arg(valueTable.name, text));
+            else if (values.contains(entry.value))
+                reader.raiseError(QString("Value table '%1': the value %2 is there twice.")
+                                      .arg(valueTable.name).arg(entry.value));
+            values.insert(entry.value);
+            valueTable.entries.append(entry);
+            reader.skipCurrentElement();
+        } else if (reader.name() == QLatin1String("Comment")) {
+            valueTable.comment = reader.readElementText();
+        } else {
+            reader.skipCurrentElement();
+        }
+    }
+
+    std::sort(valueTable.entries.begin(), valueTable.entries.end(),
+              [](const ValueTable::Entry &a, const ValueTable::Entry &b) { return a.value < b.value; });
+    return valueTable;
 }
 
 // The words used in the file for each enum value of the network settings.
@@ -456,6 +498,21 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
     }
     writer.writeEndElement(); // Nodes
 
+    writer.writeStartElement("ValueTables");
+    for (const ValueTable &valueTable : database.allValueTables()) {
+        writer.writeStartElement("ValueTable");
+        writer.writeAttribute("name", valueTable.name);
+        for (const ValueTable::Entry &entry : valueTable.entries) {
+            writer.writeEmptyElement("Value");
+            writer.writeAttribute("value", QString::number(entry.value));
+            writer.writeAttribute("description", entry.description);
+        }
+        if (!valueTable.comment.isEmpty())
+            writer.writeTextElement("Comment", valueTable.comment);
+        writer.writeEndElement(); // ValueTable
+    }
+    writer.writeEndElement(); // ValueTables
+
     writer.writeStartElement("Signals");
     for (const Signal &signal : database.allSignals()) {
         writer.writeStartElement("Signal");
@@ -469,6 +526,9 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
         writer.writeAttribute("offset", numberToXml(signal.offset));
         writer.writeAttribute("minimum", numberToXml(signal.minimum));
         writer.writeAttribute("maximum", numberToXml(signal.maximum));
+        // The value table is referred to by name: ids are not saved.
+        if (const ValueTable *valueTable = database.findValueTable(signal.valueTableId))
+            writer.writeAttribute("valueTable", valueTable->name);
         if (!signal.comment.isEmpty())
             writer.writeTextElement("Comment", signal.comment);
         writer.writeEndElement(); // Signal
@@ -531,6 +591,9 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     QVector<Signal> loadedSignals;
     QVector<Message> loadedMessages;
     QVector<Node> loadedNodes;
+    QVector<ValueTable> loadedValueTables;
+    QStringList signalValueTableNames; // per loaded signal; resolved once all tables are read
+    QSet<QString> valueTableNames;
     QSet<QString> signalNames;
     QSet<QString> messageNames;
     QSet<QString> nodeNames;
@@ -552,6 +615,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                     reader.skipCurrentElement();
                     continue;
                 }
+                signalValueTableNames << reader.attributes().value("valueTable").toString();
                 Signal signal = readSignal(reader);
                 signal.id = loadedSignals.size() + 1; // temporary; Database renumbers
                 if (!reader.hasError() && signalNames.contains(signal.name))
@@ -572,6 +636,19 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                 messageNames.insert(message.name);
                 loadedMessages.append(message);
                 messageRefs.append(refs);
+            }
+        } else if (reader.name() == QLatin1String("ValueTables")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("ValueTable")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                ValueTable valueTable = readValueTable(reader);
+                valueTable.id = loadedValueTables.size() + 1; // temporary; Database renumbers
+                if (!reader.hasError() && valueTableNames.contains(valueTable.name))
+                    reader.raiseError(QString("There are two value tables named '%1'.").arg(valueTable.name));
+                valueTableNames.insert(valueTable.name);
+                loadedValueTables.append(valueTable);
             }
         } else if (reader.name() == QLatin1String("Network")) {
             loadedNetwork = readNetwork(reader);
@@ -596,6 +673,22 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     if (reader.hasError()) {
         *errorMessage = QString("Line %1: %2").arg(reader.lineNumber()).arg(reader.errorString());
         return false;
+    }
+
+    // Now that all value tables are known, turn the table names in signals into ids.
+    QHash<QString, int> valueTableIdByName;
+    for (const ValueTable &valueTable : loadedValueTables)
+        valueTableIdByName.insert(valueTable.name, valueTable.id);
+    for (int i = 0; i < loadedSignals.size(); ++i) {
+        const QString &name = signalValueTableNames.at(i);
+        if (name.isEmpty())
+            continue;
+        if (!valueTableIdByName.contains(name)) {
+            *errorMessage = QString("Signal '%1' uses value table '%2', which does not exist.")
+                                .arg(loadedSignals.at(i).name, name);
+            return false;
+        }
+        loadedSignals[i].valueTableId = valueTableIdByName.value(name);
     }
 
     // Now that all signals and nodes are known, turn the names in messages into
@@ -653,7 +746,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         }
     }
 
-    database.replaceAll(loadedNetwork, loadedSignals, loadedMessages, loadedNodes);
+    database.replaceAll(loadedNetwork, loadedSignals, loadedMessages, loadedNodes, loadedValueTables);
     return true;
 }
 

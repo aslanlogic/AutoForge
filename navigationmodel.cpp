@@ -7,7 +7,7 @@
 // enough to find its parent without extra bookkeeping:
 //
 //   heading                      0
-//   item under a heading         Category + 1                (1 .. 4)
+//   item under a heading         Category + 1                (1 .. CategoryCount)
 //   Tx/Rx folder under a node    nodeId * 8 + FolderTag
 //   message in a Tx/Rx folder    nodeId * 8 + TxMessageTag / RxMessageTag
 //
@@ -25,7 +25,12 @@ int nodeIdOf(quintptr internalId) { return int(internalId >> 3); }
 quintptr makeId(int nodeId, quintptr tag) { return (quintptr(nodeId) << 3) | tag; }
 
 bool isHeading(const QModelIndex &index) { return index.internalId() == 0; }
-bool isCategoryItem(const QModelIndex &index) { return index.internalId() >= 1 && index.internalId() <= 4; }
+bool isCategoryItem(const QModelIndex &index)
+{
+    // Must stay below 8, the smallest number the node rows can have.
+    static_assert(NavigationModel::CategoryCount < 8, "too many categories for the internalId scheme");
+    return index.internalId() >= 1 && index.internalId() <= NavigationModel::CategoryCount;
+}
 
 } // namespace
 
@@ -87,6 +92,23 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
     connect(m_database, &Database::nodeRemoved, this, [this](int id) {
         m_txMessages.remove(id);
         m_rxMessages.remove(id);
+        endRemoveRows();
+    });
+
+    connect(m_database, &Database::valueTableAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(ValueTables), index, index);
+    });
+    connect(m_database, &Database::valueTableAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::valueTableChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfValueTable(id), 0, categoryIndex(ValueTables));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::valueTableAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(ValueTables), index, index);
+    });
+    connect(m_database, &Database::valueTableRemoved, this, [this] {
         endRemoveRows();
     });
 
@@ -199,6 +221,7 @@ int NavigationModel::rowCount(const QModelIndex &parent) const
         case NetworkNodes: return m_database->allNodes().size();
         case Messages:     return m_database->allMessages().size();
         case Signals:      return m_database->allSignals().size();
+        case ValueTables:  return m_database->allValueTables().size();
         }
         return 0;
     }
@@ -227,9 +250,10 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     // Icons are compiled into the program from resources.qrc.
     if (isHeading(index)) {
         static const char *const headings[CategoryCount] = {
-            "Network", "Network Nodes", "Messages", "Signals"};
+            "Network", "Network Nodes", "Messages", "Signals", "Value Tables"};
         static const char *const icons[CategoryCount] = {
-            ":/icons/network.svg", ":/icons/nodes.svg", ":/icons/messages.svg", ":/icons/signals.svg"};
+            ":/icons/network.svg", ":/icons/nodes.svg", ":/icons/messages.svg", ":/icons/signals.svg",
+            ":/icons/valuetables.svg"};
         switch (role) {
         case Qt::DisplayRole:    return QString(headings[index.row()]);
         case Qt::DecorationRole: return QIcon(icons[index.row()]);
@@ -246,6 +270,11 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
 
     if (isCategoryItem(index)) {
         switch (index.internalId() - 1) {
+        case ValueTables: {
+            const ValueTable &valueTable = m_database->allValueTables().at(index.row());
+            name = valueTable.name; icon = ":/icons/valuetables.svg"; kind = ValueTableItem; id = valueTable.id;
+            break;
+        }
         case Signals: {
             const Signal &signal = m_database->allSignals().at(index.row());
             name = signal.name; icon = ":/icons/signals.svg"; kind = SignalItem; id = signal.id;

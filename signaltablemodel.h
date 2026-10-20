@@ -14,7 +14,7 @@ class SignalTableModel : public QAbstractTableModel
 public:
     enum Column {
         Name, Length, ByteOrder, ValueType, Unit, InitialValue,
-        Factor, Offset, Minimum, Maximum, Comment, ColumnCount
+        Factor, Offset, Minimum, Maximum, ValueTableName, Comment, ColumnCount
     };
 
     // Value to sort by: numbers as numbers, so 10 sorts after 9.

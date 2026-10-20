@@ -2,8 +2,10 @@
 #define SIGNALDIALOG_H
 
 #include "signal.h"
+#include "valuetable.h"
 
 #include <QDialog>
+#include <QHash>
 #include <QStringList>
 
 class QComboBox;
@@ -19,7 +21,9 @@ class SignalDialog : public QDialog
 
 public:
     // existingNames: names already taken by other signals; OK is refused for these.
-    SignalDialog(const Signal &signal, const QStringList &existingNames, QWidget *parent = nullptr);
+    // allValueTables: the value tables the signal can use.
+    SignalDialog(const Signal &signal, const QStringList &existingNames,
+                 const QVector<ValueTable> &allValueTables, QWidget *parent = nullptr);
 
     Signal signal() const;
 
@@ -33,6 +37,7 @@ private:
 
     Signal m_signal; // the signal as it was when the dialog opened
     QStringList m_existingNames;
+    QHash<int, ValueTable> m_valueTablesById;
     QTabWidget *m_tabs = nullptr;
 
     // Definition tab
@@ -57,6 +62,7 @@ private:
 private slots:
     void onValueTypeChanged(const QString &text);
     void calculateMinimumMaximum();
+    void onValueTableChanged(); // shows the chosen table's values on the Value Descriptions tab
 
 };
 

@@ -3,6 +3,7 @@
 
 #include <QWidget>
 
+class Database;
 struct Signal;
 class QTableWidget;
 
@@ -14,7 +15,8 @@ class SignalPropertiesWidget : public QWidget
 public:
     explicit SignalPropertiesWidget(QWidget *parent = nullptr);
 
-    void showSignal(const Signal &signal);
+    // The database is needed to look up the signal's value table.
+    void showSignal(const Signal &signal, const Database &database);
 
 private:
     QTableWidget *m_table = nullptr;

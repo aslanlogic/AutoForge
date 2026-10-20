@@ -19,6 +19,8 @@ class QTableView;
 class QTreeView;
 class SignalPropertiesWidget;
 class SignalTableModel;
+class ValueTablePropertiesWidget;
+class ValueTableTableModel;
 
 class MainWindow : public QMainWindow
 {
@@ -45,6 +47,10 @@ private slots:
     void editNode(int id);
     void deleteNode(int id);    // asks first
     void editNetwork();
+    void checkConsistency();
+    void createNewValueTable();
+    void editValueTable(int id);
+    void deleteValueTable(int id); // asks first
     void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
     void openFile();
     bool saveFile();
@@ -61,8 +67,8 @@ private:
     QTableView *createSortableTable(QAbstractItemModel *model, int sortRole);
 
     // The right pane shows one of these at a time.
-    enum class View { Empty, Network, Signal, Message, Node, Table };
-    void showView(View view, int id = 0); // id: the signal, message or node to show
+    enum class View { Empty, Network, Signal, Message, Node, ValueTable, Table };
+    void showView(View view, int id = 0); // id: the signal, message, node or value table to show
     void showTable(QTableView *table);
     // Draws the shown view again from the Database. Called after every change;
     // falls back to the empty page if the shown object no longer exists.
@@ -75,6 +81,7 @@ private:
     SignalTableModel *m_signalTableModel = nullptr;
     MessageTableModel *m_messageTableModel = nullptr;
     NodeTableModel *m_nodeTableModel = nullptr;
+    ValueTableTableModel *m_valueTableTableModel = nullptr;
 
     QSplitter *m_splitter = nullptr;
     QLineEdit *m_searchEdit = nullptr;
@@ -90,6 +97,8 @@ private:
     QTableView *m_messageTable = nullptr;                   // all messages
     NodePropertiesWidget *m_nodeProperties = nullptr;       // one node
     QTableView *m_nodeTable = nullptr;                      // all nodes
+    ValueTablePropertiesWidget *m_valueTableProperties = nullptr; // one value table
+    QTableView *m_valueTableTable = nullptr;                // all value tables
     View m_shownView = View::Empty;
     int m_shownId = 0;
 };

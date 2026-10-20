@@ -232,15 +232,91 @@ QVector<int> Database::messagesReceivedBy(int nodeId) const
     return ids;
 }
 
+const QVector<ValueTable> &Database::allValueTables() const
+{
+    return m_valueTables;
+}
+
+QStringList Database::valueTableNames() const
+{
+    QStringList names;
+    for (const ValueTable &valueTable : m_valueTables)
+        names << valueTable.name;
+    return names;
+}
+
+const ValueTable *Database::findValueTable(int id) const
+{
+    const int index = indexOfValueTable(id);
+    return index < 0 ? nullptr : &m_valueTables.at(index);
+}
+
+int Database::indexOfValueTable(int id) const
+{
+    for (int i = 0; i < m_valueTables.size(); ++i) {
+        if (m_valueTables.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+int Database::addValueTable(ValueTable valueTable)
+{
+    valueTable.id = m_nextId++;
+    emit valueTableAboutToBeAdded(m_valueTables.size());
+    m_valueTables.append(valueTable);
+    emit valueTableAdded(valueTable.id);
+    return valueTable.id;
+}
+
+bool Database::updateValueTable(const ValueTable &valueTable)
+{
+    const int index = indexOfValueTable(valueTable.id);
+    if (index < 0)
+        return false;
+
+    m_valueTables[index] = valueTable;
+    emit valueTableChanged(valueTable.id);
+    return true;
+}
+
+bool Database::removeValueTable(int id)
+{
+    const int index = indexOfValueTable(id);
+    if (index < 0 || !signalsUsingValueTable(id).isEmpty())
+        return false;
+
+    emit valueTableAboutToBeRemoved(index);
+    m_valueTables.removeAt(index);
+    emit valueTableRemoved(id);
+    return true;
+}
+
+QStringList Database::signalsUsingValueTable(int id) const
+{
+    QStringList names;
+    for (const Signal &signal : m_signals) {
+        if (signal.valueTableId == id)
+            names << signal.name;
+    }
+    return names;
+}
+
 void Database::replaceAll(const Network &newNetwork, QVector<Signal> newSignals, QVector<Message> newMessages,
-                          QVector<Node> newNodes)
+                          QVector<Node> newNodes, QVector<ValueTable> newValueTables)
 {
     emit aboutToBeReset();
     m_nextId = 1;
-    QHash<int, int> newSignalIds; // id given by the caller -> new id
+    QHash<int, int> newValueTableIds; // id given by the caller -> new id
+    for (ValueTable &valueTable : newValueTables) {
+        newValueTableIds.insert(valueTable.id, m_nextId);
+        valueTable.id = m_nextId++;
+    }
+    QHash<int, int> newSignalIds;
     for (Signal &signal : newSignals) {
         newSignalIds.insert(signal.id, m_nextId);
         signal.id = m_nextId++;
+        signal.valueTableId = newValueTableIds.value(signal.valueTableId, 0);
     }
     QHash<int, int> newNodeIds;
     for (Node &node : newNodes) {
@@ -270,5 +346,6 @@ void Database::replaceAll(const Network &newNetwork, QVector<Signal> newSignals,
     m_signals = newSignals;
     m_messages = newMessages;
     m_nodes = newNodes;
+    m_valueTables = newValueTables;
     emit wasReset();
 }

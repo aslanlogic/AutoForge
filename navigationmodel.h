@@ -22,12 +22,14 @@ class Database;
 //     <one row per message>
 //   Signals
 //     <one row per signal>
+//   Value Tables
+//     <one row per value table>
 class NavigationModel : public QAbstractItemModel
 {
     Q_OBJECT
 
 public:
-    enum Category { Network, NetworkNodes, Messages, Signals, CategoryCount };
+    enum Category { Network, NetworkNodes, Messages, Signals, ValueTables, CategoryCount };
 
     // What a row shows; ask with ItemKindRole.
     enum ItemKind {
@@ -38,11 +40,12 @@ public:
         NodeTxFolder,  // "Tx Messages" under a node
         NodeRxFolder,  // "Rx Messages" under a node
         NodeTxMessage, // a message under "Tx Messages"
-        NodeRxMessage  // a message under "Rx Messages"
+        NodeRxMessage, // a message under "Rx Messages"
+        ValueTableItem
     };
 
-    // The id of the database object shown in that row: Signal::id, Message::id
-    // or Node::id. For the Tx/Rx folders it is the id of the node they belong to.
+    // The id of the database object shown in that row: Signal::id, Message::id,
+    // Node::id or ValueTable::id. For the Tx/Rx folders it is the id of the node they belong to.
     static constexpr int ObjectIdRole = Qt::UserRole + 1;
     static constexpr int ItemKindRole = Qt::UserRole + 2;
 

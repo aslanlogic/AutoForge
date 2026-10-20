@@ -20,11 +20,15 @@
 #include <cmath>
 #include <limits>
 
-SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingNames, QWidget *parent)
+SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingNames,
+                           const QVector<ValueTable> &allValueTables, QWidget *parent)
     : QDialog(parent)
     , m_signal(signal)
     , m_existingNames(existingNames)
 {
+    for (const ValueTable &valueTable : allValueTables)
+        m_valueTablesById.insert(valueTable.id, valueTable);
+
     setWindowTitle(QString("Signal '%1'").arg(signal.name));
 
     m_tabs = new QTabWidget(this);
@@ -54,6 +58,10 @@ SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingName
     m_minimumEdit->setText(c.toString(signal.minimum, 'g', QLocale::FloatingPointShortest));
     m_maximumEdit->setText(c.toString(signal.maximum, 'g', QLocale::FloatingPointShortest));
     m_commentEdit->setPlainText(signal.comment);
+    m_valueTableCombo->setCurrentIndex(qMax(0, m_valueTableCombo->findData(signal.valueTableId)));
+    onValueTableChanged();
+    connect(m_valueTableCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SignalDialog::onValueTableChanged);
 
     resize(640, 520);
 }
@@ -73,6 +81,7 @@ Signal SignalDialog::signal() const
     signal.offset = c.toDouble(m_offsetEdit->text());
     signal.minimum = c.toDouble(m_minimumEdit->text());
     signal.maximum = c.toDouble(m_maximumEdit->text());
+    signal.valueTableId = m_valueTableCombo->currentData().toInt();
     signal.comment = m_commentEdit->toPlainText();
     return signal;
 }
@@ -132,8 +141,15 @@ QWidget *SignalDialog::createDefinitionTab()
     auto *calculateButton = new QPushButton("Calculate minimum and maximum");
     connect(calculateButton, &QPushButton::clicked, this, &SignalDialog::calculateMinimumMaximum);
 
+    // Item data is the ValueTable::id; 0 means none. Listed A-Z.
     m_valueTableCombo = new QComboBox;
-    m_valueTableCombo->addItem("<none>");
+    m_valueTableCombo->addItem("<none>", 0);
+    QVector<ValueTable> valueTables = m_valueTablesById.values().toVector();
+    std::sort(valueTables.begin(), valueTables.end(), [](const ValueTable &a, const ValueTable &b) {
+        return QString::compare(a.name, b.name, Qt::CaseInsensitive) < 0;
+    });
+    for (const ValueTable &valueTable : qAsConst(valueTables))
+        m_valueTableCombo->addItem(valueTable.name, valueTable.id);
 
     auto *grid = new QGridLayout;
     grid->addWidget(new QLabel("Name:"), 0, 0);
@@ -175,12 +191,16 @@ QWidget *SignalDialog::createValueDescriptionsTab()
 {
     auto *tab = new QWidget;
 
+    // Read-only: the values come from the value table chosen on the Definition tab.
     m_valueDescriptionsTable = new QTableWidget(0, 2);
     m_valueDescriptionsTable->setHorizontalHeaderLabels({"Value", "Description"});
     m_valueDescriptionsTable->horizontalHeader()->setStretchLastSection(true);
     m_valueDescriptionsTable->verticalHeader()->setVisible(false);
+    m_valueDescriptionsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     auto *layout = new QVBoxLayout(tab);
+    layout->addWidget(new QLabel("The values of the value table chosen on the Definition tab "
+                                 "(edit the table itself under 'Value Tables'):"));
     layout->addWidget(m_valueDescriptionsTable);
 
     return tab;
@@ -245,4 +265,15 @@ void SignalDialog::calculateMinimumMaximum()
     const double b = rawMax * factor + offset;
     m_minimumEdit->setText(c.toString(std::min(a, b), 'g', QLocale::FloatingPointShortest));
     m_maximumEdit->setText(c.toString(std::max(a, b), 'g', QLocale::FloatingPointShortest));
+}
+
+void SignalDialog::onValueTableChanged()
+{
+    const ValueTable valueTable = m_valueTablesById.value(m_valueTableCombo->currentData().toInt());
+    m_valueDescriptionsTable->setRowCount(valueTable.entries.size());
+    for (int row = 0; row < valueTable.entries.size(); ++row) {
+        const ValueTable::Entry &entry = valueTable.entries.at(row);
+        m_valueDescriptionsTable->setItem(row, 0, new QTableWidgetItem(QString::number(entry.value)));
+        m_valueDescriptionsTable->setItem(row, 1, new QTableWidgetItem(entry.description));
+    }
 }
