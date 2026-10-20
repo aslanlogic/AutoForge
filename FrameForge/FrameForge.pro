@@ -1,3 +1,5 @@
+# FrameForge: the message database editor of AutoForge.
+
 QT += core gui widgets
 
 CONFIG += c++17
@@ -6,9 +8,7 @@ TARGET = FrameForge
 TEMPLATE = app
 
 SOURCES += \
-    consistencychecker.cpp \
     consistencydialog.cpp \
-    database.cpp \
     main.cpp \
     mainwindow.cpp \
     messagedialog.cpp \
@@ -27,14 +27,10 @@ SOURCES += \
     signaltablemodel.cpp \
     valuetabledialog.cpp \
     valuetablepropertieswidget.cpp \
-    valuetabletablemodel.cpp \
-    xmlstorage.cpp
+    valuetabletablemodel.cpp
 
 HEADERS += \
-    consistencychecker.h \
     consistencydialog.h \
-    database.h \
-    message.h \
     mainwindow.h \
     messagedialog.h \
     messagelayoutwidget.h \
@@ -42,23 +38,21 @@ HEADERS += \
     messagetablemodel.h \
     navigationfiltermodel.h \
     navigationmodel.h \
-    network.h \
     networkdialog.h \
     networkpropertieswidget.h \
-    node.h \
     nodedialog.h \
     nodepropertieswidget.h \
     nodetablemodel.h \
     propertytable.h \
-    signal.h \
     signaldialog.h \
     signalpropertieswidget.h \
     signaltablemodel.h \
-    valuetable.h \
     valuetabledialog.h \
     valuetablepropertieswidget.h \
-    valuetabletablemodel.h \
-    xmlstorage.h
+    valuetabletablemodel.h
 
 RESOURCES += \
     resources.qrc
+
+# The data, the Database and .ffxml reading/writing come from the core library.
+include(../core/core.pri)

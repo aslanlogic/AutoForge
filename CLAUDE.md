@@ -1,11 +1,15 @@
-# FrameForge
+# AutoForge
 
-A desktop editor for message databases, in the spirit of Vector CANdb++, but
-not limited to CAN: a network runs **one** protocol — CAN, CAN FD, UART or UDP.
-Documents are saved as `.ffxml` (XML).
+Tools for message databases on CAN, CAN FD, UART and UDP networks
+(a network runs **one** of these protocols). Documents are `.ffxml` (XML).
 
-The main goal is **analysing traffic**: decoding real frames into messages and
-signal values with the database edited here. That part is not built yet.
+| Folder | What it is |
+|---|---|
+| `core/` | Static library, **QtCore only**: the data structures, `Database`, `.ffxml` reading/writing, `ConsistencyChecker`. Shared by all programs, so they always agree on the format. |
+| `FrameForge/` | The database **editor** (GUI), in the spirit of Vector CANdb++. |
+| `DiagProbe/` | *Planned, not created yet:* the **traffic analyser** — decodes real frames into messages and signal values using a `.ffxml`. This is the main goal of the project. |
+
+Never add widget/GUI code to `core/` (its `.pro` has `QT = core`, so the build would fail anyway).
 
 ## Working with the user
 
@@ -19,16 +23,23 @@ signal values with the database edited here. That part is not built yet.
 
 ## Build
 
-Qt **5.15.3**, C++17, **qmake** (`FrameForge.pro`). No other libraries.
+Qt **5.15.3**, C++17, **qmake**. No other libraries. `AutoForge.pro` is a
+`subdirs` project that builds `core` first, then the programs.
 
 ```bash
-mkdir -p build && cd build && qmake ../FrameForge.pro && make -j8 && ./FrameForge
+mkdir -p build && cd build && qmake ../AutoForge.pro && make -j8 && ./FrameForge/FrameForge
 ```
 
-New source files must be added to `SOURCES`/`HEADERS` in `FrameForge.pro`
-(kept in alphabetical order); new icons to `resources.qrc`.
+- New source files go into the `SOURCES`/`HEADERS` of their folder's `.pro`
+  (kept in alphabetical order); new icons into `FrameForge/resources.qrc`.
+- A program uses the library with `include(../core/core.pri)` (include path,
+  linking, relink-on-change, Windows debug/release folders). A new program
+  (DiagProbe) also needs an entry in `AutoForge.pro` with `<name>.depends = core`.
 
 ## Architecture
+
+`core/` holds the data structs, `Database`, `xmlstorage` and `ConsistencyChecker`;
+everything else below lives in `FrameForge/`.
 
 ```
 Database  ->  item models  ->  views
@@ -109,6 +120,7 @@ screenshots with `QWidget::grab()`. Notes:
 
 ## Not done yet
 
-- Traffic analysis (decoding core, live/recorded sources, trace view) — the main goal.
+- DiagProbe, the traffic analyser (decoding, live/recorded sources, trace view) — the main goal.
+  Decoding logic that both programs could use belongs in `core/`.
 - Undo, Delete key, per-signal receivers, signals under messages in the tree,
   jumping from a consistency-check row to the object, DBC import/export, code generation.
