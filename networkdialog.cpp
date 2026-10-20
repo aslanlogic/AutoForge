@@ -346,7 +346,9 @@ QWidget *NetworkDialog::createUartTab()
     auto *frameGroup = new QGroupBox("Frame format");
     auto *frameForm = new QFormLayout(frameGroup);
     frameForm->addRow(new QLabel("Every message is sent as [ID] [DLC] [payload] [CRC],\n"
-                                 "COBS-encoded and ended with a 0x00 byte. The DLC is 1 byte."));
+                                 "COBS-encoded and ended with a 0x00 byte. The DLC is 1 byte.\n"
+                                 "The CRC covers [ID] [DLC] [payload] (before COBS).\n"
+                                 "The ID and the CRC are sent lowest byte first."));
     frameForm->addRow("ID size:", m_uartIdSizeSpin);
     frameForm->addRow("CRC:", m_uartCrcCombo);
 

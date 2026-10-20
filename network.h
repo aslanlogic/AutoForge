@@ -27,6 +27,15 @@ struct UartSettings
     enum class Parity { None, Even, Odd, Mark, Space };
     enum class StopBits { One, OneAndHalf, Two };
     enum class FlowControl { None, Hardware, Software }; // Hardware = RTS/CTS, Software = XON/XOFF
+    // The exact CRC variant of each size is fixed, so both ends of the line
+    // always compute the same value. "Check" is the CRC of the ASCII text
+    // "123456789"; use it to test an implementation.
+    //
+    //   Crc8   CRC-8/SMBUS          poly 0x07        init 0x00        not reflected  xorout 0x00        check 0xF4
+    //   Crc16  CRC-16/CCITT-FALSE   poly 0x1021      init 0xFFFF      not reflected  xorout 0x0000      check 0x29B1
+    //          (also called CRC-16/IBM-3740)
+    //   Crc32  CRC-32/ISO-HDLC      poly 0x04C11DB7  init 0xFFFFFFFF  reflected      xorout 0xFFFFFFFF  check 0xCBF43926
+    //          (the one used by zlib and Ethernet)
     enum class Crc { Crc8, Crc16, Crc32 };
 
     int baudRate = 115200;
@@ -36,9 +45,11 @@ struct UartSettings
     FlowControl flowControl = FlowControl::None;
 
     // How messages are framed on the serial line: each message is
-    //   [message ID, idSize bytes] [DLC, 1 byte] [payload, DLC bytes] [CRC]
+    //   [message ID, idSize bytes] [DLC, 1 byte] [payload, DLC bytes] [CRC, 1/2/4 bytes]
     // COBS-encoded and ended with a 0x00 byte. COBS removes every 0x00 from the
     // encoded bytes, so a 0x00 always marks the end of a message.
+    //  - The CRC is computed over [ID] [DLC] [payload], before COBS encoding.
+    //  - The ID and the CRC are sent little-endian (lowest byte first).
     int idSize = 1; // bytes
     Crc crc = Crc::Crc16;
 };
@@ -118,9 +129,9 @@ inline QString toString(UartSettings::FlowControl flowControl)
 inline QString toString(UartSettings::Crc crc)
 {
     switch (crc) {
-    case UartSettings::Crc::Crc8:  return "CRC-8";
-    case UartSettings::Crc::Crc16: return "CRC-16";
-    case UartSettings::Crc::Crc32: return "CRC-32";
+    case UartSettings::Crc::Crc8:  return "CRC-8 (SMBUS)";
+    case UartSettings::Crc::Crc16: return "CRC-16 (CCITT-FALSE)";
+    case UartSettings::Crc::Crc32: return "CRC-32 (ISO-HDLC, as zlib)";
     }
     return QString();
 }

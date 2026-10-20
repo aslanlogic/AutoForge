@@ -36,7 +36,8 @@ QVector<QPair<QString, QString>> protocolRows(const Network &network)
             {"Parity", toString(network.uart.parity)},
             {"Stop bits", toString(network.uart.stopBits)},
             {"Flow control", toString(network.uart.flowControl)},
-            {"Framing", "COBS: [ID] [DLC] [payload] [CRC], ended with 0x00"},
+            {"Framing", "COBS: [ID] [DLC] [payload] [CRC], ended with 0x00; "
+                        "CRC over [ID] [DLC] [payload]; ID and CRC lowest byte first"},
             {"ID size", QString("%1 byte(s)").arg(network.uart.idSize)},
             {"CRC", toString(network.uart.crc)},
         };
