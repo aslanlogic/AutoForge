@@ -20,11 +20,6 @@
 
 namespace {
 
-QString frameIdToText(quint32 frameId)
-{
-    return "0x" + QString::number(frameId, 16).toUpper();
-}
-
 // Accepts hex with a 0x prefix ("0x1A") or plain decimal ("26").
 bool textToFrameId(const QString &text, quint32 *frameId)
 {

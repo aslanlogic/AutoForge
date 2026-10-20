@@ -14,6 +14,7 @@
 //
 // The widget only shows what it is given with setLayoutData(); the owner
 // (MessageDialog) applies the move and calls setLayoutData() again.
+// With setReadOnly(true) it only shows the layout (used in the message view).
 class MessageLayoutWidget : public QWidget
 {
     Q_OBJECT
@@ -23,6 +24,8 @@ public:
 
     void setLayoutData(int lengthInBytes, const QVector<SignalMapping> &mappings,
                        const QHash<int, Signal> &signalsById);
+
+    void setReadOnly(bool readOnly);
 
     QSize sizeHint() const override;
 
@@ -44,6 +47,7 @@ private:
     QVector<int> bitsOf(int mappingIndex, int startBit) const;
     bool fits(int mappingIndex, int startBit) const;
 
+    bool m_readOnly = false;
     int m_lengthInBytes = 0;
     QVector<SignalMapping> m_mappings;
     QHash<int, Signal> m_signalsById;

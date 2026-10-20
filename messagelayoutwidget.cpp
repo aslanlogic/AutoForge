@@ -48,9 +48,16 @@ void MessageLayoutWidget::setLayoutData(int lengthInBytes, const QVector<SignalM
     m_signalsById = signalsById;
     m_dragIndex = -1;
 
-    setMinimumSize(sizeHint());
-    updateGeometry();
+    // Exactly as big as the grid, so it shrinks too when the message gets shorter.
+    setFixedSize(sizeHint());
     update();
+}
+
+void MessageLayoutWidget::setReadOnly(bool readOnly)
+{
+    m_readOnly = readOnly;
+    setMouseTracking(!readOnly);
+    unsetCursor();
 }
 
 QSize MessageLayoutWidget::sizeHint() const
@@ -168,7 +175,7 @@ void MessageLayoutWidget::paintEvent(QPaintEvent *event)
 void MessageLayoutWidget::mousePressEvent(QMouseEvent *event)
 {
     const int bit = bitAt(event->pos());
-    if (event->button() != Qt::LeftButton || bit < 0)
+    if (m_readOnly || event->button() != Qt::LeftButton || bit < 0)
         return;
 
     // Find the signal under the mouse and which of its bits was grabbed.
@@ -187,6 +194,9 @@ void MessageLayoutWidget::mousePressEvent(QMouseEvent *event)
 
 void MessageLayoutWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_readOnly)
+        return;
+
     const int bit = bitAt(event->pos());
 
     if (m_dragIndex < 0) {

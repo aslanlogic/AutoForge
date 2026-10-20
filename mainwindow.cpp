@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 #include "database.h"
 #include "messagedialog.h"
+#include "messagepropertieswidget.h"
+#include "messagetablemodel.h"
 #include "navigationfiltermodel.h"
 #include "navigationmodel.h"
 #include "signaldialog.h"
@@ -103,19 +105,36 @@ void MainWindow::setupLayout()
     m_rightPane = new QStackedWidget(m_splitter);
     m_emptyPage = new QWidget;
     m_signalProperties = new SignalPropertiesWidget;
+    m_messageProperties = new MessagePropertiesWidget;
+    m_signalTableModel = new SignalTableModel(m_database, this);
+    m_messageTableModel = new MessageTableModel(m_database, this);
+    m_signalTable = createSortableTable(m_signalTableModel, SignalTableModel::SortRole);
+    m_messageTable = createSortableTable(m_messageTableModel, MessageTableModel::SortRole);
     m_rightPane->addWidget(m_emptyPage);
     m_rightPane->addWidget(m_signalProperties);
-    m_rightPane->addWidget(createSignalTable());
+    m_rightPane->addWidget(m_signalTable);
+    m_rightPane->addWidget(m_messageProperties);
+    m_rightPane->addWidget(m_messageTable);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
+
+    // Keep the right pane up to date when what it shows is edited or deleted.
     connect(m_database, &Database::signalChanged, this, &MainWindow::onSignalChanged);
     connect(m_database, &Database::signalRemoved, this, [this](int id) {
         if (id == m_shownSignalId)
-            showSignalProperties(0);
+            showEmptyPage();
+    });
+    connect(m_database, &Database::messageChanged, this, [this](int id) {
+        if (id == m_shownMessageId)
+            showMessageProperties(id);
+    });
+    connect(m_database, &Database::messageRemoved, this, [this](int id) {
+        if (id == m_shownMessageId)
+            showEmptyPage();
     });
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
-        showSignalProperties(0);
+        showEmptyPage();
         m_navigationTree->expand(
             m_navigationFilter->mapFromSource(m_navigationModel->categoryIndex(NavigationModel::Signals)));
     });
@@ -131,28 +150,34 @@ void MainWindow::setupLayout()
     setCentralWidget(m_splitter);
 }
 
-QWidget *MainWindow::createSignalTable()
+QTableView *MainWindow::createSortableTable(QAbstractItemModel *model, int sortRole)
 {
-    // Database -> SignalTableModel -> sort proxy -> QTableView.
+    // model -> sort proxy -> QTableView.
     // Clicking a column header sorts the view only; Database keeps its own order.
-    m_signalTableModel = new SignalTableModel(m_database, this);
-    m_signalSortModel = new QSortFilterProxyModel(this);
-    m_signalSortModel->setSourceModel(m_signalTableModel);
-    m_signalSortModel->setSortRole(SignalTableModel::SortRole);
-    m_signalSortModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+    auto *sortModel = new QSortFilterProxyModel(this);
+    sortModel->setSourceModel(model);
+    sortModel->setSortRole(sortRole);
+    sortModel->setSortCaseSensitivity(Qt::CaseInsensitive);
 
-    m_signalTable = new QTableView;
-    m_signalTable->setModel(m_signalSortModel);
-    m_signalTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_signalTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_signalTable->verticalHeader()->setVisible(false);
-    m_signalTable->horizontalHeader()->setStretchLastSection(true);
+    auto *table = new QTableView;
+    table->setModel(sortModel);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->verticalHeader()->setVisible(false);
+    table->horizontalHeader()->setStretchLastSection(true);
+    // The table is still empty here, so this measures only the column titles:
+    // widen a column where its title needs it, otherwise keep the default width.
+    table->resizeColumnsToContents();
+    for (int column = 0; column < model->columnCount(); ++column) {
+        table->setColumnWidth(column, qMax(table->columnWidth(column),
+                                           table->horizontalHeader()->defaultSectionSize()));
+    }
 
     // Start in creation order (no sort column); a header click sorts by that column.
-    m_signalTable->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
-    m_signalTable->setSortingEnabled(true);
+    table->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+    table->setSortingEnabled(true);
 
-    return m_signalTable;
+    return table;
 }
 
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
@@ -302,35 +327,69 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
 {
     const QModelIndex current = m_navigationFilter->mapToSource(filterCurrent);
     const QModelIndex signalsHeading = m_navigationModel->categoryIndex(NavigationModel::Signals);
+    const QModelIndex messagesHeading = m_navigationModel->categoryIndex(NavigationModel::Messages);
+    const int id = current.data(NavigationModel::ObjectIdRole).toInt();
 
-    if (current == signalsHeading) {
-        m_shownSignalId = 0;
-        m_rightPane->setCurrentWidget(m_signalTable);
-    } else if (current.parent() == signalsHeading) {
-        showSignalProperties(current.data(NavigationModel::ObjectIdRole).toInt());
-    } else {
-        showSignalProperties(0);
-    }
+    if (current == signalsHeading)
+        showTable(m_signalTable);
+    else if (current.parent() == signalsHeading)
+        showSignalProperties(id);
+    else if (current == messagesHeading)
+        showTable(m_messageTable);
+    else if (current.parent() == messagesHeading)
+        showMessageProperties(id);
+    else
+        showEmptyPage();
 }
 
 void MainWindow::onSignalChanged(int id)
 {
-    // Keep the right pane up to date when the shown signal is edited.
     if (id == m_shownSignalId)
         showSignalProperties(id);
+    // The shown message lists its signals' names and lengths.
+    if (m_shownMessageId != 0)
+        showMessageProperties(m_shownMessageId);
+}
+
+void MainWindow::showEmptyPage()
+{
+    m_shownSignalId = 0;
+    m_shownMessageId = 0;
+    m_rightPane->setCurrentWidget(m_emptyPage);
 }
 
 void MainWindow::showSignalProperties(int id)
 {
     const Signal *signal = m_database->findSignal(id);
-    m_shownSignalId = signal ? id : 0;
-
-    if (signal) {
-        m_signalProperties->showSignal(*signal);
-        m_rightPane->setCurrentWidget(m_signalProperties);
-    } else {
-        m_rightPane->setCurrentWidget(m_emptyPage);
+    if (!signal) {
+        showEmptyPage();
+        return;
     }
+    m_shownSignalId = id;
+    m_shownMessageId = 0;
+    m_signalProperties->showSignal(*signal);
+    m_rightPane->setCurrentWidget(m_signalProperties);
+}
+
+void MainWindow::showMessageProperties(int id)
+{
+    const Message *message = m_database->findMessage(id);
+    if (!message) {
+        showEmptyPage();
+        return;
+    }
+    m_shownSignalId = 0;
+    m_shownMessageId = id;
+    m_messageProperties->showMessage(*message, *m_database);
+    m_rightPane->setCurrentWidget(m_messageProperties);
+}
+
+void MainWindow::showTable(QTableView *table)
+{
+    // The tables update themselves through their models; nothing to refresh by hand.
+    m_shownSignalId = 0;
+    m_shownMessageId = 0;
+    m_rightPane->setCurrentWidget(table);
 }
 
 namespace {

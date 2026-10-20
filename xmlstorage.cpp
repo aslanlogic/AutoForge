@@ -258,7 +258,7 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
         writer.writeStartElement("Message");
         writer.writeAttribute("name", message.name);
         writer.writeAttribute("type", messageTypeToXml(message.type));
-        writer.writeAttribute("frameId", "0x" + QString::number(message.frameId, 16).toUpper());
+        writer.writeAttribute("frameId", frameIdToText(message.frameId));
         writer.writeAttribute("length", QString::number(message.length));
         writer.writeAttribute("txMethod", txMethodToXml(message.txMethod));
         writer.writeAttribute("cycleTime", QString::number(message.cycleTime));

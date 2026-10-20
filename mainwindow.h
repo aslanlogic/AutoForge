@@ -4,10 +4,12 @@
 #include <QMainWindow>
 
 class Database;
+class MessagePropertiesWidget;
+class MessageTableModel;
 class NavigationFilterModel;
 class NavigationModel;
+class QAbstractItemModel;
 class QLineEdit;
-class QSortFilterProxyModel;
 class QSplitter;
 class QStackedWidget;
 class QTableView;
@@ -50,15 +52,18 @@ private:
     // If there are unsaved changes, asks whether to save them.
     // Returns false if the user chose Cancel (or saving failed): the caller must then stop.
     bool maybeSave();
-    QWidget *createSignalTable();
-    void showSignalProperties(int id); // 0 = show nothing
+    QTableView *createSortableTable(QAbstractItemModel *model, int sortRole);
+    void showEmptyPage();
+    void showSignalProperties(int id);  // shows the empty page if there is no such signal
+    void showMessageProperties(int id); // shows the empty page if there is no such message
+    void showTable(QTableView *table);
 
     Database *m_database = nullptr;
     QString m_currentFilePath; // empty until the document is saved or opened
     NavigationModel *m_navigationModel = nullptr;
     NavigationFilterModel *m_navigationFilter = nullptr; // applies the search text
     SignalTableModel *m_signalTableModel = nullptr;
-    QSortFilterProxyModel *m_signalSortModel = nullptr; // sorts the table without touching Database
+    MessageTableModel *m_messageTableModel = nullptr;
 
     QSplitter *m_splitter = nullptr;
     QLineEdit *m_searchEdit = nullptr;
@@ -67,9 +72,13 @@ private:
     // Right pane: shows one page at a time.
     QStackedWidget *m_rightPane = nullptr;
     QWidget *m_emptyPage = nullptr;
-    SignalPropertiesWidget *m_signalProperties = nullptr; // one signal
-    QTableView *m_signalTable = nullptr;                  // all signals
-    int m_shownSignalId = 0; // signal currently shown in the right pane, 0 = none
+    SignalPropertiesWidget *m_signalProperties = nullptr;   // one signal
+    QTableView *m_signalTable = nullptr;                    // all signals
+    MessagePropertiesWidget *m_messageProperties = nullptr; // one message
+    QTableView *m_messageTable = nullptr;                   // all messages
+    // What the right pane currently shows, so it can be refreshed after edits; 0 = none.
+    int m_shownSignalId = 0;
+    int m_shownMessageId = 0;
 };
 
 #endif // MAINWINDOW_H

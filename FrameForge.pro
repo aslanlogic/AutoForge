@@ -11,6 +11,8 @@ SOURCES += \
     mainwindow.cpp \
     messagedialog.cpp \
     messagelayoutwidget.cpp \
+    messagepropertieswidget.cpp \
+    messagetablemodel.cpp \
     navigationfiltermodel.cpp \
     navigationmodel.cpp \
     signaldialog.cpp \
@@ -24,6 +26,8 @@ HEADERS += \
     mainwindow.h \
     messagedialog.h \
     messagelayoutwidget.h \
+    messagepropertieswidget.h \
+    messagetablemodel.h \
     navigationfiltermodel.h \
     navigationmodel.h \
     signal.h \

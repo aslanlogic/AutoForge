@@ -59,6 +59,12 @@ inline QString toString(Message::TxMethod txMethod)
     return QString();
 }
 
+// Frame IDs are shown and saved as hex: "0x1A".
+inline QString frameIdToText(quint32 frameId)
+{
+    return "0x" + QString::number(frameId, 16).toUpper();
+}
+
 inline bool isCan(Message::Type type)
 {
     return type == Message::Type::CanStandard || type == Message::Type::CanExtended
