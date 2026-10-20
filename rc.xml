@@ -5,4 +5,11 @@
         <Signal name="RcCarSwVersionMinor" length="8" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="255"/>
         <Signal name="RcCarSwVersionMajor" length="8" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="255"/>
     </Signals>
+    <Messages>
+        <Message name="RcCarSwVersion" type="uart" frameId="0x834" length="8" txMethod="cyclic" cycleTime="100">
+            <SignalRef name="RcCarSwVersionMajor" startBit="0"/>
+            <SignalRef name="RcCarSwVersionMinor" startBit="8"/>
+            <SignalRef name="RcCarSwVersionPatch" startBit="16"/>
+        </Message>
+    </Messages>
 </FrameForge>

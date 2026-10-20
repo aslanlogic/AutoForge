@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "database.h"
+#include "messagedialog.h"
 #include "navigationfiltermodel.h"
 #include "navigationmodel.h"
 #include "signaldialog.h"
@@ -39,6 +40,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Opening a file (Database::wasReset) is not an edit, so it is not connected here.
     connect(m_database, &Database::signalAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::signalChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::messageAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::messageChanged, this, [this] { setWindowModified(true); });
 }
 
 void MainWindow::setupMenus()
@@ -149,13 +152,20 @@ QWidget *MainWindow::createSignalTable()
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
 {
     const QModelIndex index = m_navigationFilter->mapToSource(m_navigationTree->indexAt(pos));
-    if (index != m_navigationModel->categoryIndex(NavigationModel::Signals))
+
+    // Which "New" to offer depends on the heading that was right-clicked.
+    void (MainWindow::*createNew)() = nullptr;
+    if (index == m_navigationModel->categoryIndex(NavigationModel::Signals))
+        createNew = &MainWindow::createNewSignal;
+    else if (index == m_navigationModel->categoryIndex(NavigationModel::Messages))
+        createNew = &MainWindow::createNewMessage;
+    else
         return;
 
     QMenu menu(this);
     // Use the desktop theme's icon, falling back to Qt's built-in one where no theme exists (e.g. Windows).
     const QIcon newIcon = QIcon::fromTheme("document-new", style()->standardIcon(QStyle::SP_FileIcon));
-    menu.addAction(newIcon, "New", this, &MainWindow::createNewSignal);
+    menu.addAction(newIcon, "New", this, createNew);
     menu.exec(m_navigationTree->viewport()->mapToGlobal(pos));
 }
 
@@ -181,8 +191,11 @@ void MainWindow::createNewSignal()
 void MainWindow::onNavigationDoubleClicked(const QModelIndex &filterIndex)
 {
     const QModelIndex index = m_navigationFilter->mapToSource(filterIndex);
+    const int id = index.data(NavigationModel::ObjectIdRole).toInt();
     if (index.parent() == m_navigationModel->categoryIndex(NavigationModel::Signals))
-        editSignal(index.data(NavigationModel::ObjectIdRole).toInt());
+        editSignal(id);
+    else if (index.parent() == m_navigationModel->categoryIndex(NavigationModel::Messages))
+        editMessage(id);
 }
 
 void MainWindow::editSignal(int id)
@@ -201,6 +214,41 @@ void MainWindow::editSignal(int id)
         return;
 
     m_database->updateSignal(dialog.signal());
+}
+
+void MainWindow::createNewMessage()
+{
+    const QStringList existingNames = m_database->messageNames();
+
+    // Pick the first free default name: New_Message_1, New_Message_2, ...
+    Message newMessage;
+    int number = 1;
+    do {
+        newMessage.name = QString("New_Message_%1").arg(number++);
+    } while (existingNames.contains(newMessage.name));
+
+    MessageDialog dialog(newMessage, existingNames, m_database->allSignals(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addMessage(dialog.message());
+}
+
+void MainWindow::editMessage(int id)
+{
+    const Message *stored = m_database->findMessage(id);
+    if (!stored)
+        return;
+    const Message message = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->messageNames();
+    otherNames.removeOne(message.name);
+
+    MessageDialog dialog(message, otherNames, m_database->allSignals(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateMessage(dialog.message());
 }
 
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)

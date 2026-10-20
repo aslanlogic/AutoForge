@@ -1,6 +1,7 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
+#include "message.h"
 #include "signal.h"
 
 #include <QObject>
@@ -27,9 +28,20 @@ public:
     int addSignal(Signal signal);
     // Replaces the stored signal that has the same id. Returns false if there is none.
     bool updateSignal(const Signal &signal);
-    // Throws away all signals and stores these instead, each with a new unique id.
-    // Used when a file is opened.
-    void replaceAllSignals(QVector<Signal> newSignals);
+
+    // Messages: same idea as the signal functions above.
+    const QVector<Message> &allMessages() const;
+    QStringList messageNames() const;
+    const Message *findMessage(int id) const;
+    int indexOfMessage(int id) const;
+    int addMessage(Message message);
+    bool updateMessage(const Message &message);
+
+    // Throws away everything and stores these instead, each with a new unique id.
+    // Used when a file is opened. The signals must come with ids that are unique
+    // among them; the messages' signal mappings refer to those ids and are
+    // renumbered along with them. Mappings to unknown signals are dropped.
+    void replaceAll(QVector<Signal> newSignals, QVector<Message> newMessages);
 
 signals:
     // Emitted before and after a signal is inserted at position `index` of allSignals().
@@ -37,13 +49,17 @@ signals:
     void signalAboutToBeAdded(int index);
     void signalAdded(int id);
     void signalChanged(int id);
-    // Emitted before and after everything is replaced at once (see replaceAllSignals()).
+    void messageAboutToBeAdded(int index);
+    void messageAdded(int id);
+    void messageChanged(int id);
+    // Emitted before and after everything is replaced at once (see replaceAll()).
     void aboutToBeReset();
     void wasReset();
 
 private:
     QVector<Signal> m_signals;
-    int m_nextId = 1;
+    QVector<Message> m_messages;
+    int m_nextId = 1; // shared by signals and messages, so every id is unique
 };
 
 #endif // DATABASE_H

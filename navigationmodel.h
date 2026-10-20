@@ -11,6 +11,7 @@ class Database;
 //   Network
 //   Network Nodes
 //   Messages
+//     <one row per message>
 //   Signals
 //     <one row per signal>
 class NavigationModel : public QAbstractItemModel
@@ -20,7 +21,7 @@ class NavigationModel : public QAbstractItemModel
 public:
     enum Category { Network, NetworkNodes, Messages, Signals, CategoryCount };
 
-    // Returns the id of the database object shown in that row (e.g. Signal::id).
+    // Returns the id of the database object shown in that row (Signal::id or Message::id).
     static constexpr int ObjectIdRole = Qt::UserRole + 1;
 
     explicit NavigationModel(Database *database, QObject *parent = nullptr);

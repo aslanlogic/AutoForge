@@ -15,9 +15,16 @@ class Database;
 //         <Comment>Crankshaft speed</Comment>
 //       </Signal>
 //     </Signals>
+//     <Messages>
+//       <Message name="EngineData" type="can-standard" frameId="0x100" length="8"
+//                txMethod="cyclic" cycleTime="100">
+//         <SignalRef name="EngineSpeed" startBit="7"/>
+//         <Comment>Engine status</Comment>
+//       </Message>
+//     </Messages>
 //   </FrameForge>
 //
-// Signal ids are not saved; they are assigned again when the file is loaded.
+// Signal and message ids are not saved; they are assigned again when the file is loaded.
 namespace XmlStorage {
 
 // On failure these return false and put a human-readable reason in *errorMessage.

@@ -32,6 +32,8 @@ private slots:
     // Indexes from the tree belong to m_navigationFilter, hence the "filter" prefix.
     void onNavigationDoubleClicked(const QModelIndex &filterIndex);
     void editSignal(int id);
+    void createNewMessage();
+    void editMessage(int id);
     void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
     void onSignalChanged(int id);
     void openFile();

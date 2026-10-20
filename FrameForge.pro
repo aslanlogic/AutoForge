@@ -9,6 +9,8 @@ SOURCES += \
     database.cpp \
     main.cpp \
     mainwindow.cpp \
+    messagedialog.cpp \
+    messagelayoutwidget.cpp \
     navigationfiltermodel.cpp \
     navigationmodel.cpp \
     signaldialog.cpp \
@@ -18,7 +20,10 @@ SOURCES += \
 
 HEADERS += \
     database.h \
+    message.h \
     mainwindow.h \
+    messagedialog.h \
+    messagelayoutwidget.h \
     navigationfiltermodel.h \
     navigationmodel.h \
     signal.h \

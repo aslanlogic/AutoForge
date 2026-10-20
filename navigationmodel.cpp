@@ -21,6 +21,16 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
         const QModelIndex changed = index(m_database->indexOfSignal(id), 0, categoryIndex(Signals));
         emit dataChanged(changed, changed);
     });
+    connect(m_database, &Database::messageAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(Messages), index, index);
+    });
+    connect(m_database, &Database::messageAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::messageChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfMessage(id), 0, categoryIndex(Messages));
+        emit dataChanged(changed, changed);
+    });
     connect(m_database, &Database::aboutToBeReset, this, &NavigationModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);
 }
@@ -60,6 +70,8 @@ int NavigationModel::rowCount(const QModelIndex &parent) const
 
     if (parent.row() == Signals)
         return m_database->allSignals().size();
+    if (parent.row() == Messages)
+        return m_database->allMessages().size();
 
     return 0;
 }
@@ -98,6 +110,16 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
             return QIcon(":/icons/signals.svg");
         if (role == ObjectIdRole)
             return signal.id;
+    }
+
+    if (index.internalId() - 1 == Messages) {
+        const Message &message = m_database->allMessages().at(index.row());
+        if (role == Qt::DisplayRole)
+            return message.name;
+        if (role == Qt::DecorationRole)
+            return QIcon(":/icons/messages.svg");
+        if (role == ObjectIdRole)
+            return message.id;
     }
 
     return QVariant();
