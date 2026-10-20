@@ -34,6 +34,8 @@ private slots:
     void editSignal(int id);
     void createNewMessage();
     void editMessage(int id);
+    void deleteSignal(int id);  // asks first
+    void deleteMessage(int id); // asks first
     void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
     void onSignalChanged(int id);
     void openFile();

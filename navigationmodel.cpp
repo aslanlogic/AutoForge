@@ -21,6 +21,12 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
         const QModelIndex changed = index(m_database->indexOfSignal(id), 0, categoryIndex(Signals));
         emit dataChanged(changed, changed);
     });
+    connect(m_database, &Database::signalAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(Signals), index, index);
+    });
+    connect(m_database, &Database::signalRemoved, this, [this] {
+        endRemoveRows();
+    });
     connect(m_database, &Database::messageAboutToBeAdded, this, [this](int index) {
         beginInsertRows(categoryIndex(Messages), index, index);
     });
@@ -30,6 +36,12 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
     connect(m_database, &Database::messageChanged, this, [this](int id) {
         const QModelIndex changed = index(m_database->indexOfMessage(id), 0, categoryIndex(Messages));
         emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::messageAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(Messages), index, index);
+    });
+    connect(m_database, &Database::messageRemoved, this, [this] {
+        endRemoveRows();
     });
     connect(m_database, &Database::aboutToBeReset, this, &NavigationModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);

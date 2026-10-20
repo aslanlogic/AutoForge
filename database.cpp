@@ -55,6 +55,32 @@ bool Database::updateSignal(const Signal &signal)
     return true;
 }
 
+bool Database::removeSignal(int id)
+{
+    const int index = indexOfSignal(id);
+    if (index < 0 || !messagesUsingSignal(id).isEmpty())
+        return false;
+
+    emit signalAboutToBeRemoved(index);
+    m_signals.removeAt(index);
+    emit signalRemoved(id);
+    return true;
+}
+
+QStringList Database::messagesUsingSignal(int id) const
+{
+    QStringList names;
+    for (const Message &message : m_messages) {
+        for (const SignalMapping &mapping : message.signalMappings) {
+            if (mapping.signalId == id) {
+                names << message.name;
+                break;
+            }
+        }
+    }
+    return names;
+}
+
 const QVector<Message> &Database::allMessages() const
 {
     return m_messages;
@@ -100,6 +126,18 @@ bool Database::updateMessage(const Message &message)
 
     m_messages[index] = message;
     emit messageChanged(message.id);
+    return true;
+}
+
+bool Database::removeMessage(int id)
+{
+    const int index = indexOfMessage(id);
+    if (index < 0)
+        return false;
+
+    emit messageAboutToBeRemoved(index);
+    m_messages.removeAt(index);
+    emit messageRemoved(id);
     return true;
 }
 

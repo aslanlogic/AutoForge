@@ -42,6 +42,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::signalChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::messageAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::messageChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::signalRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::messageRemoved, this, [this] { setWindowModified(true); });
 }
 
 void MainWindow::setupMenus()
@@ -107,6 +109,10 @@ void MainWindow::setupLayout()
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
     connect(m_database, &Database::signalChanged, this, &MainWindow::onSignalChanged);
+    connect(m_database, &Database::signalRemoved, this, [this](int id) {
+        if (id == m_shownSignalId)
+            showSignalProperties(0);
+    });
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
         showSignalProperties(0);
@@ -152,21 +158,27 @@ QWidget *MainWindow::createSignalTable()
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
 {
     const QModelIndex index = m_navigationFilter->mapToSource(m_navigationTree->indexAt(pos));
+    const QModelIndex signalsHeading = m_navigationModel->categoryIndex(NavigationModel::Signals);
+    const QModelIndex messagesHeading = m_navigationModel->categoryIndex(NavigationModel::Messages);
+    const int id = index.data(NavigationModel::ObjectIdRole).toInt();
 
-    // Which "New" to offer depends on the heading that was right-clicked.
-    void (MainWindow::*createNew)() = nullptr;
-    if (index == m_navigationModel->categoryIndex(NavigationModel::Signals))
-        createNew = &MainWindow::createNewSignal;
-    else if (index == m_navigationModel->categoryIndex(NavigationModel::Messages))
-        createNew = &MainWindow::createNewMessage;
-    else
-        return;
-
-    QMenu menu(this);
-    // Use the desktop theme's icon, falling back to Qt's built-in one where no theme exists (e.g. Windows).
+    // Use the desktop theme's icons, falling back to Qt's built-in ones where no theme exists (e.g. Windows).
     const QIcon newIcon = QIcon::fromTheme("document-new", style()->standardIcon(QStyle::SP_FileIcon));
-    menu.addAction(newIcon, "New", this, createNew);
-    menu.exec(m_navigationTree->viewport()->mapToGlobal(pos));
+    const QIcon deleteIcon = QIcon::fromTheme("edit-delete", style()->standardIcon(QStyle::SP_TrashIcon));
+
+    // Headings offer "New", items under them offer "Delete".
+    QMenu menu(this);
+    if (index == signalsHeading)
+        menu.addAction(newIcon, "New", this, &MainWindow::createNewSignal);
+    else if (index == messagesHeading)
+        menu.addAction(newIcon, "New", this, &MainWindow::createNewMessage);
+    else if (index.parent() == signalsHeading)
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSignal(id); });
+    else if (index.parent() == messagesHeading)
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteMessage(id); });
+
+    if (!menu.isEmpty())
+        menu.exec(m_navigationTree->viewport()->mapToGlobal(pos));
 }
 
 void MainWindow::createNewSignal()
@@ -249,6 +261,41 @@ void MainWindow::editMessage(int id)
         return;
 
     m_database->updateMessage(dialog.message());
+}
+
+void MainWindow::deleteSignal(int id)
+{
+    const Signal *signal = m_database->findSignal(id);
+    if (!signal)
+        return;
+
+    // A signal that a message carries cannot be deleted (Database refuses it too).
+    const QStringList usedIn = m_database->messagesUsingSignal(id);
+    if (!usedIn.isEmpty()) {
+        QMessageBox::information(this, "Delete Signal",
+                                 QString("The signal '%1' cannot be deleted because it is used in "
+                                         "these messages:\n%2\n\nRemove it from them first.")
+                                     .arg(signal->name, usedIn.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the signal '%1'?").arg(signal->name);
+    if (QMessageBox::question(this, "Delete Signal", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeSignal(id);
+}
+
+void MainWindow::deleteMessage(int id)
+{
+    const Message *message = m_database->findMessage(id);
+    if (!message)
+        return;
+
+    // Its signals are not deleted: they stay under "Signals".
+    const QString question = QString("Delete the message '%1'?").arg(message->name);
+    if (QMessageBox::question(this, "Delete Message", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeMessage(id);
 }
 
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)

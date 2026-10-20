@@ -17,6 +17,12 @@ SignalTableModel::SignalTableModel(Database *database, QObject *parent)
         const int row = m_database->indexOfSignal(id);
         emit dataChanged(index(row, 0), index(row, ColumnCount - 1));
     });
+    connect(m_database, &Database::signalAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(QModelIndex(), index, index);
+    });
+    connect(m_database, &Database::signalRemoved, this, [this] {
+        endRemoveRows();
+    });
     connect(m_database, &Database::aboutToBeReset, this, &SignalTableModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &SignalTableModel::endResetModel);
 }

@@ -28,6 +28,11 @@ public:
     int addSignal(Signal signal);
     // Replaces the stored signal that has the same id. Returns false if there is none.
     bool updateSignal(const Signal &signal);
+    // Deletes the signal. A signal that is still placed in a message is not
+    // deleted: returns false then, and also if there is no signal with this id.
+    bool removeSignal(int id);
+    // Names of the messages that carry this signal.
+    QStringList messagesUsingSignal(int id) const;
 
     // Messages: same idea as the signal functions above.
     const QVector<Message> &allMessages() const;
@@ -36,6 +41,7 @@ public:
     int indexOfMessage(int id) const;
     int addMessage(Message message);
     bool updateMessage(const Message &message);
+    bool removeMessage(int id);
 
     // Throws away everything and stores these instead, each with a new unique id.
     // Used when a file is opened. The signals must come with ids that are unique
@@ -49,9 +55,14 @@ signals:
     void signalAboutToBeAdded(int index);
     void signalAdded(int id);
     void signalChanged(int id);
+    // Emitted before and after the signal at position `index` of allSignals() is deleted.
+    void signalAboutToBeRemoved(int index);
+    void signalRemoved(int id);
     void messageAboutToBeAdded(int index);
     void messageAdded(int id);
     void messageChanged(int id);
+    void messageAboutToBeRemoved(int index);
+    void messageRemoved(int id);
     // Emitted before and after everything is replaced at once (see replaceAll()).
     void aboutToBeReset();
     void wasReset();
