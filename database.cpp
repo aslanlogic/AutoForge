@@ -20,11 +20,17 @@ QStringList Database::signalNames() const
 
 const Signal *Database::findSignal(int id) const
 {
-    for (const Signal &signal : m_signals) {
-        if (signal.id == id)
-            return &signal;
+    const int index = indexOfSignal(id);
+    return index < 0 ? nullptr : &m_signals.at(index);
+}
+
+int Database::indexOfSignal(int id) const
+{
+    for (int i = 0; i < m_signals.size(); ++i) {
+        if (m_signals.at(i).id == id)
+            return i;
     }
-    return nullptr;
+    return -1;
 }
 
 int Database::addSignal(Signal signal)
@@ -34,4 +40,25 @@ int Database::addSignal(Signal signal)
     m_signals.append(signal);
     emit signalAdded(signal.id);
     return signal.id;
+}
+
+bool Database::updateSignal(const Signal &signal)
+{
+    const int index = indexOfSignal(signal.id);
+    if (index < 0)
+        return false;
+
+    m_signals[index] = signal;
+    emit signalChanged(signal.id);
+    return true;
+}
+
+void Database::replaceAllSignals(QVector<Signal> newSignals)
+{
+    emit aboutToBeReset();
+    m_nextId = 1;
+    for (Signal &signal : newSignals)
+        signal.id = m_nextId++;
+    m_signals = newSignals;
+    emit wasReset();
 }

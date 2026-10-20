@@ -31,6 +31,7 @@ private:
     QWidget *createValueDescriptionsTab();
     QWidget *createCommentTab();
 
+    Signal m_signal; // the signal as it was when the dialog opened
     QStringList m_existingNames;
     QTabWidget *m_tabs = nullptr;
 

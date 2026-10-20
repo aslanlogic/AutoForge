@@ -24,4 +24,25 @@ struct Signal
     QString comment;
 };
 
+// Display names, in the same wording as the Signal dialog's combo boxes.
+inline QString toString(Signal::ByteOrder byteOrder)
+{
+    switch (byteOrder) {
+    case Signal::ByteOrder::Intel:    return "Intel";
+    case Signal::ByteOrder::Motorola: return "Motorola";
+    }
+    return QString();
+}
+
+inline QString toString(Signal::ValueType valueType)
+{
+    switch (valueType) {
+    case Signal::ValueType::Signed:     return "Signed";
+    case Signal::ValueType::Unsigned:   return "Unsigned";
+    case Signal::ValueType::IeeeFloat:  return "IEEE Float";
+    case Signal::ValueType::IeeeDouble: return "IEEE Double";
+    }
+    return QString();
+}
+
 #endif // SIGNAL_H

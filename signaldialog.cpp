@@ -22,6 +22,7 @@
 
 SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingNames, QWidget *parent)
     : QDialog(parent)
+    , m_signal(signal)
     , m_existingNames(existingNames)
 {
     setWindowTitle(QString("Signal '%1'").arg(signal.name));
@@ -60,7 +61,8 @@ SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingName
 Signal SignalDialog::signal() const
 {
     const QLocale c = QLocale::c();
-    Signal signal;
+    // Start from the signal we were given, so fields the dialog does not show (like id) are kept.
+    Signal signal = m_signal;
     signal.name = m_nameEdit->text().trimmed();
     signal.length = m_lengthEdit->text().toInt();
     signal.byteOrder = static_cast<Signal::ByteOrder>(m_byteOrderCombo->currentIndex());

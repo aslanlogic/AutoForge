@@ -10,11 +10,17 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     navigationmodel.cpp \
-    signaldialog.cpp
+    signaldialog.cpp \
+    signalpropertieswidget.cpp \
+    signaltablemodel.cpp \
+    xmlstorage.cpp
 
 HEADERS += \
     database.h \
     mainwindow.h \
     navigationmodel.h \
     signal.h \
-    signaldialog.h
+    signaldialog.h \
+    signalpropertieswidget.h \
+    signaltablemodel.h \
+    xmlstorage.h

@@ -15,6 +15,12 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
     connect(m_database, &Database::signalAdded, this, [this] {
         endInsertRows();
     });
+    connect(m_database, &Database::signalChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfSignal(id), 0, categoryIndex(Signals));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::aboutToBeReset, this, &NavigationModel::beginResetModel);
+    connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);
 }
 
 QModelIndex NavigationModel::categoryIndex(Category category) const

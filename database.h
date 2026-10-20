@@ -20,15 +20,26 @@ public:
     QStringList signalNames() const;
     // nullptr if no signal has this id. The pointer is only valid until the next change.
     const Signal *findSignal(int id) const;
+    // Position of the signal in allSignals(), or -1 if no signal has this id.
+    int indexOfSignal(int id) const;
 
     // Assigns a new unique id to the signal, stores it and returns the id.
     int addSignal(Signal signal);
+    // Replaces the stored signal that has the same id. Returns false if there is none.
+    bool updateSignal(const Signal &signal);
+    // Throws away all signals and stores these instead, each with a new unique id.
+    // Used when a file is opened.
+    void replaceAllSignals(QVector<Signal> newSignals);
 
 signals:
     // Emitted before and after a signal is inserted at position `index` of allSignals().
     // Item models need both to keep their views in sync.
     void signalAboutToBeAdded(int index);
     void signalAdded(int id);
+    void signalChanged(int id);
+    // Emitted before and after everything is replaced at once (see replaceAllSignals()).
+    void aboutToBeReset();
+    void wasReset();
 
 private:
     QVector<Signal> m_signals;
