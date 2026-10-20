@@ -9,6 +9,7 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -17,6 +18,8 @@
 #include <QTableWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace {
 
@@ -35,20 +38,26 @@ bool textToFrameId(const QString &text, quint32 *frameId)
 } // namespace
 
 MessageDialog::MessageDialog(const Message &message, const QStringList &existingNames,
-                             const QVector<Signal> &allSignals, QWidget *parent)
+                             const QVector<Signal> &allSignals, const QVector<Node> &allNodes,
+                             QWidget *parent)
     : QDialog(parent)
     , m_message(message)
     , m_existingNames(existingNames)
+    , m_nodes(allNodes)
     , m_mappings(message.signalMappings)
 {
     for (const Signal &signal : allSignals)
         m_signalsById.insert(signal.id, signal);
+    std::sort(m_nodes.begin(), m_nodes.end(), [](const Node &a, const Node &b) {
+        return QString::compare(a.name, b.name, Qt::CaseInsensitive) < 0;
+    });
 
     setWindowTitle(QString("Message '%1 (%2)'").arg(message.name, frameIdToText(message.frameId)));
 
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(createDefinitionTab(), "Definition");
     m_tabs->addTab(createSignalsTab(), "Signals");
+    m_tabs->addTab(createReceiversTab(), "Receivers");
     m_tabs->addTab(createLayoutTab(), "Layout");
     m_tabs->addTab(createCommentTab(), "Comment");
 
@@ -70,6 +79,7 @@ MessageDialog::MessageDialog(const Message &message, const QStringList &existing
     m_txMethodCombo->setCurrentIndex(static_cast<int>(message.txMethod));
     onTxMethodChanged();
     m_cycleTimeSpin->setValue(message.cycleTime);
+    m_transmitterCombo->setCurrentIndex(qMax(0, m_transmitterCombo->findData(message.transmitterId)));
     m_commentEdit->setPlainText(message.comment);
     refreshSignals();
 
@@ -90,6 +100,13 @@ Message MessageDialog::message() const
     message.txMethod = currentTxMethod();
     message.cycleTime = m_cycleTimeSpin->value();
     message.signalMappings = m_mappings;
+    message.transmitterId = m_transmitterCombo->currentData().toInt();
+    message.receiverIds.clear();
+    for (int row = 0; row < m_receiversList->count(); ++row) {
+        const QListWidgetItem *item = m_receiversList->item(row);
+        if (item->checkState() == Qt::Checked)
+            message.receiverIds.append(item->data(Qt::UserRole).toInt());
+    }
     message.comment = m_commentEdit->toPlainText();
     return message;
 }
@@ -127,6 +144,16 @@ void MessageDialog::accept()
         return;
     }
 
+    // A node does not receive its own message.
+    const Message edited = message();
+    if (edited.transmitterId != 0 && edited.receiverIds.contains(edited.transmitterId)) {
+        QMessageBox::warning(this, windowTitle(),
+                             QString("'%1' is the transmitter, so it cannot also be a receiver.")
+                                 .arg(m_transmitterCombo->currentText()));
+        m_tabs->setCurrentWidget(m_receiversList->parentWidget());
+        return;
+    }
+
     // E.g. the length was made smaller after the signals were placed.
     const QString layoutError = checkSignalLayout(m_lengthSpin->value(), m_mappings, m_signalsById);
     if (!layoutError.isEmpty()) {
@@ -157,10 +184,11 @@ QWidget *MessageDialog::createDefinitionTab()
     m_lengthLabel = new QLabel;
     m_lengthSpin = new QSpinBox;
 
-    // There are no network nodes yet to choose from.
+    // Item data is the Node::id; 0 means no transmitter.
     m_transmitterCombo = new QComboBox;
-    m_transmitterCombo->addItem("-- No Transmitter --");
-    m_transmitterCombo->setEnabled(false);
+    m_transmitterCombo->addItem("-- No Transmitter --", 0);
+    for (const Node &node : qAsConst(m_nodes))
+        m_transmitterCombo->addItem(node.name, node.id);
 
     m_txMethodCombo = new QComboBox;
     for (auto txMethod : {Message::TxMethod::Cyclic, Message::TxMethod::OnEvent,
@@ -224,6 +252,28 @@ QWidget *MessageDialog::createSignalsTab()
     auto *layout = new QVBoxLayout(tab);
     layout->addWidget(m_signalsTable);
     layout->addLayout(buttons);
+
+    return tab;
+}
+
+QWidget *MessageDialog::createReceiversTab()
+{
+    auto *tab = new QWidget;
+
+    // One checkbox per node; item data is the Node::id.
+    m_receiversList = new QListWidget;
+    for (const Node &node : qAsConst(m_nodes)) {
+        auto *item = new QListWidgetItem(node.name, m_receiversList);
+        item->setData(Qt::UserRole, node.id);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(m_message.receiverIds.contains(node.id) ? Qt::Checked : Qt::Unchecked);
+    }
+
+    auto *layout = new QVBoxLayout(tab);
+    layout->addWidget(new QLabel(m_nodes.isEmpty()
+                                     ? "There are no network nodes yet. Create them under 'Network Nodes' first."
+                                     : "Network nodes that receive this message:"));
+    layout->addWidget(m_receiversList);
 
     return tab;
 }

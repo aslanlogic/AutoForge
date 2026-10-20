@@ -1,28 +1,13 @@
 #include "messagepropertieswidget.h"
 #include "database.h"
 #include "messagelayoutwidget.h"
+#include "propertytable.h"
 
-#include <QHeaderView>
 #include <QLabel>
 #include <QScrollArea>
 #include <QSplitter>
 #include <QTableWidget>
 #include <QVBoxLayout>
-
-namespace {
-
-QTableWidget *createReadOnlyTable(const QStringList &headers)
-{
-    auto *table = new QTableWidget(0, headers.size());
-    table->setHorizontalHeaderLabels(headers);
-    table->horizontalHeader()->setStretchLastSection(true);
-    table->verticalHeader()->setVisible(false);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setSelectionMode(QAbstractItemView::NoSelection);
-    return table;
-}
-
-} // namespace
 
 MessagePropertiesWidget::MessagePropertiesWidget(QWidget *parent)
     : QWidget(parent)
@@ -69,25 +54,24 @@ void MessagePropertiesWidget::showMessage(const Message &message, const Database
 {
     const QString lengthName = isCan(message.type) ? "DLC" : "Length [Byte]";
     const QString cycleTime = isCyclic(message.txMethod) ? QString("%1 ms").arg(message.cycleTime) : QString();
-    const QVector<QPair<QString, QString>> rows = {
+    const Node *transmitter = database.findNode(message.transmitterId);
+    QStringList receivers;
+    for (int receiverId : message.receiverIds) {
+        if (const Node *receiver = database.findNode(receiverId))
+            receivers << receiver->name;
+    }
+
+    setPropertyRows(m_propertiesTable, {
         {"Name", message.name},
         {"Type", toString(message.type)},
         {"ID", frameIdToText(message.frameId)},
         {lengthName, QString::number(message.length)},
+        {"Transmitter", transmitter ? transmitter->name : QString()},
+        {"Receivers", receivers.join(", ")},
         {"Tx Method", toString(message.txMethod)},
         {"Cycle Time", cycleTime},
         {"Comment", message.comment},
-    };
-
-    m_propertiesTable->setRowCount(rows.size());
-    for (int row = 0; row < rows.size(); ++row) {
-        m_propertiesTable->setItem(row, 0, new QTableWidgetItem(rows.at(row).first));
-        m_propertiesTable->setItem(row, 1, new QTableWidgetItem(rows.at(row).second));
-    }
-    m_propertiesTable->resizeColumnToContents(0);
-    // Only as tall as its rows, so the signals list gets the remaining space.
-    m_propertiesTable->setFixedHeight(m_propertiesTable->horizontalHeader()->height()
-                                      + rows.size() * m_propertiesTable->verticalHeader()->defaultSectionSize() + 4);
+    });
 
     m_signalsTable->setRowCount(message.signalMappings.size());
     for (int row = 0; row < message.signalMappings.size(); ++row) {

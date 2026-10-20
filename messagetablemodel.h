@@ -12,7 +12,10 @@ class MessageTableModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    enum Column { Name, Type, FrameId, Length, TxMethod, CycleTime, SignalCount, Comment, ColumnCount };
+    enum Column {
+        Name, Type, FrameId, Length, Transmitter, Receivers, TxMethod, CycleTime, SignalCount, Comment,
+        ColumnCount
+    };
 
     // Value to sort by: numbers as numbers, so 0x100 sorts after 0xFF.
     static constexpr int SortRole = Qt::UserRole + 1;

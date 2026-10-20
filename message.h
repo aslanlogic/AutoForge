@@ -32,6 +32,8 @@ struct Message
     TxMethod txMethod = TxMethod::Cyclic;
     int cycleTime = 100; // in ms; only used when txMethod sends cyclically
     QVector<SignalMapping> signalMappings; // the signals this message carries
+    int transmitterId = 0;   // Node::id of the one node that sends it; 0 = none
+    QVector<int> receiverIds; // Node::id of every node that receives it
     QString comment;
 };
 

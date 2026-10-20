@@ -8,6 +8,9 @@ class MessagePropertiesWidget;
 class MessageTableModel;
 class NavigationFilterModel;
 class NavigationModel;
+class NetworkPropertiesWidget;
+class NodePropertiesWidget;
+class NodeTableModel;
 class QAbstractItemModel;
 class QLineEdit;
 class QSplitter;
@@ -38,8 +41,10 @@ private slots:
     void editMessage(int id);
     void deleteSignal(int id);  // asks first
     void deleteMessage(int id); // asks first
+    void createNewNode();
+    void editNode(int id);
+    void deleteNode(int id);    // asks first
     void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
-    void onSignalChanged(int id);
     void openFile();
     bool saveFile();
     bool saveFileAs();
@@ -53,10 +58,14 @@ private:
     // Returns false if the user chose Cancel (or saving failed): the caller must then stop.
     bool maybeSave();
     QTableView *createSortableTable(QAbstractItemModel *model, int sortRole);
-    void showEmptyPage();
-    void showSignalProperties(int id);  // shows the empty page if there is no such signal
-    void showMessageProperties(int id); // shows the empty page if there is no such message
+
+    // The right pane shows one of these at a time.
+    enum class View { Empty, Network, Signal, Message, Node, Table };
+    void showView(View view, int id = 0); // id: the signal, message or node to show
     void showTable(QTableView *table);
+    // Draws the shown view again from the Database. Called after every change;
+    // falls back to the empty page if the shown object no longer exists.
+    void refreshRightPane();
 
     Database *m_database = nullptr;
     QString m_currentFilePath; // empty until the document is saved or opened
@@ -64,6 +73,7 @@ private:
     NavigationFilterModel *m_navigationFilter = nullptr; // applies the search text
     SignalTableModel *m_signalTableModel = nullptr;
     MessageTableModel *m_messageTableModel = nullptr;
+    NodeTableModel *m_nodeTableModel = nullptr;
 
     QSplitter *m_splitter = nullptr;
     QLineEdit *m_searchEdit = nullptr;
@@ -72,13 +82,15 @@ private:
     // Right pane: shows one page at a time.
     QStackedWidget *m_rightPane = nullptr;
     QWidget *m_emptyPage = nullptr;
+    NetworkPropertiesWidget *m_networkProperties = nullptr; // overview of everything
     SignalPropertiesWidget *m_signalProperties = nullptr;   // one signal
     QTableView *m_signalTable = nullptr;                    // all signals
     MessagePropertiesWidget *m_messageProperties = nullptr; // one message
     QTableView *m_messageTable = nullptr;                   // all messages
-    // What the right pane currently shows, so it can be refreshed after edits; 0 = none.
-    int m_shownSignalId = 0;
-    int m_shownMessageId = 0;
+    NodePropertiesWidget *m_nodeProperties = nullptr;       // one node
+    QTableView *m_nodeTable = nullptr;                      // all nodes
+    View m_shownView = View::Empty;
+    int m_shownId = 0;
 };
 
 #endif // MAINWINDOW_H

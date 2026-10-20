@@ -127,10 +127,17 @@ QString txMethodToXml(Message::TxMethod txMethod)
     return QString();
 }
 
+// The names a <Message> uses for other things. They may not have been read yet
+// when the message is read, so they are resolved once the whole file is in.
+struct MessageRefs
+{
+    QVector<QPair<QString, int>> signalRefs; // signal name, startBit
+    QString transmitter;                     // node name; empty = none
+    QStringList receivers;                   // node names
+};
+
 // Reads one <Message> element. On a problem it calls reader.raiseError().
-// Its <SignalRef> elements name signals that may not have been read yet, so
-// they are returned in signalRefs (name, startBit) and resolved later.
-Message readMessage(QXmlStreamReader &reader, QVector<QPair<QString, int>> *signalRefs)
+Message readMessage(QXmlStreamReader &reader, MessageRefs *refs)
 {
     const QXmlStreamAttributes attributes = reader.attributes();
     Message message;
@@ -148,6 +155,7 @@ Message readMessage(QXmlStreamReader &reader, QVector<QPair<QString, int>> *sign
     message.name = attributes.value("name").toString().trimmed();
     if (message.name.isEmpty())
         reader.raiseError("A message has no name.");
+    refs->transmitter = attributes.value("transmitter").toString();
 
     const QString type = attributes.value("type").toString();
     bool typeFound = type.isEmpty(); // missing means the default, CAN Standard
@@ -204,7 +212,10 @@ Message readMessage(QXmlStreamReader &reader, QVector<QPair<QString, int>> *sign
             if (!ok || startBit < 0)
                 reader.raiseError(QString("Message '%1': signal '%2' has no valid startBit.")
                                       .arg(message.name, signalName));
-            signalRefs->append({signalName, startBit});
+            refs->signalRefs.append({signalName, startBit});
+            reader.skipCurrentElement();
+        } else if (reader.name() == QLatin1String("Receiver")) {
+            refs->receivers << reader.attributes().value("name").toString();
             reader.skipCurrentElement();
         } else {
             reader.skipCurrentElement();
@@ -212,6 +223,23 @@ Message readMessage(QXmlStreamReader &reader, QVector<QPair<QString, int>> *sign
     }
 
     return message;
+}
+
+// Reads one <Node> element. On a problem it calls reader.raiseError().
+Node readNode(QXmlStreamReader &reader)
+{
+    Node node;
+    node.name = reader.attributes().value("name").toString().trimmed();
+    if (node.name.isEmpty())
+        reader.raiseError("A network node has no name.");
+
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Comment"))
+            node.comment = reader.readElementText();
+        else
+            reader.skipCurrentElement();
+    }
+    return node;
 }
 
 } // namespace
@@ -233,6 +261,16 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
     writer.writeStartDocument();
     writer.writeStartElement("FrameForge");
     writer.writeAttribute("version", FormatVersion);
+
+    writer.writeStartElement("Nodes");
+    for (const Node &node : database.allNodes()) {
+        writer.writeStartElement("Node");
+        writer.writeAttribute("name", node.name);
+        if (!node.comment.isEmpty())
+            writer.writeTextElement("Comment", node.comment);
+        writer.writeEndElement(); // Node
+    }
+    writer.writeEndElement(); // Nodes
 
     writer.writeStartElement("Signals");
     for (const Signal &signal : database.allSignals()) {
@@ -262,7 +300,15 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
         writer.writeAttribute("length", QString::number(message.length));
         writer.writeAttribute("txMethod", txMethodToXml(message.txMethod));
         writer.writeAttribute("cycleTime", QString::number(message.cycleTime));
-        // Signals are referred to by name: ids are not saved.
+        // Signals and nodes are referred to by name: ids are not saved.
+        if (const Node *transmitter = database.findNode(message.transmitterId))
+            writer.writeAttribute("transmitter", transmitter->name);
+        for (int receiverId : message.receiverIds) {
+            if (const Node *receiver = database.findNode(receiverId)) {
+                writer.writeEmptyElement("Receiver");
+                writer.writeAttribute("name", receiver->name);
+            }
+        }
         for (const SignalMapping &mapping : message.signalMappings) {
             const Signal *signal = database.findSignal(mapping.signalId);
             if (!signal)
@@ -298,9 +344,11 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     QXmlStreamReader reader(&file);
     QVector<Signal> loadedSignals;
     QVector<Message> loadedMessages;
+    QVector<Node> loadedNodes;
     QSet<QString> signalNames;
     QSet<QString> messageNames;
-    QVector<QVector<QPair<QString, int>>> signalRefs; // per loaded message
+    QSet<QString> nodeNames;
+    QVector<MessageRefs> messageRefs; // per loaded message
 
     if (!reader.readNextStartElement() || reader.name() != QLatin1String("FrameForge")) {
         if (!reader.hasError())
@@ -331,13 +379,26 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                     reader.skipCurrentElement();
                     continue;
                 }
-                QVector<QPair<QString, int>> refs;
+                MessageRefs refs;
                 const Message message = readMessage(reader, &refs);
                 if (!reader.hasError() && messageNames.contains(message.name))
                     reader.raiseError(QString("There are two messages named '%1'.").arg(message.name));
                 messageNames.insert(message.name);
                 loadedMessages.append(message);
-                signalRefs.append(refs);
+                messageRefs.append(refs);
+            }
+        } else if (reader.name() == QLatin1String("Nodes")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("Node")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                Node node = readNode(reader);
+                node.id = loadedNodes.size() + 1; // temporary; Database renumbers
+                if (!reader.hasError() && nodeNames.contains(node.name))
+                    reader.raiseError(QString("There are two network nodes named '%1'.").arg(node.name));
+                nodeNames.insert(node.name);
+                loadedNodes.append(node);
             }
         } else {
             reader.skipCurrentElement();
@@ -349,17 +410,40 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         return false;
     }
 
-    // Now that all signals are known, turn the signal names in messages into ids
-    // and check that the signals fit in their message.
+    // Now that all signals and nodes are known, turn the names in messages into
+    // ids and check that the signals fit in their message.
     QHash<QString, int> signalIdByName;
     QHash<int, Signal> signalsById;
     for (const Signal &signal : loadedSignals) {
         signalIdByName.insert(signal.name, signal.id);
         signalsById.insert(signal.id, signal);
     }
+    QHash<QString, int> nodeIdByName;
+    for (const Node &node : loadedNodes)
+        nodeIdByName.insert(node.name, node.id);
+
     for (int i = 0; i < loadedMessages.size(); ++i) {
         Message &message = loadedMessages[i];
-        for (const auto &ref : signalRefs.at(i)) {
+        const MessageRefs &refs = messageRefs.at(i);
+
+        if (!refs.transmitter.isEmpty()) {
+            if (!nodeIdByName.contains(refs.transmitter)) {
+                *errorMessage = QString("Message '%1' is transmitted by '%2', which is not a network node.")
+                                    .arg(message.name, refs.transmitter);
+                return false;
+            }
+            message.transmitterId = nodeIdByName.value(refs.transmitter);
+        }
+        for (const QString &receiver : refs.receivers) {
+            if (!nodeIdByName.contains(receiver)) {
+                *errorMessage = QString("Message '%1' is received by '%2', which is not a network node.")
+                                    .arg(message.name, receiver);
+                return false;
+            }
+            message.receiverIds.append(nodeIdByName.value(receiver));
+        }
+
+        for (const auto &ref : refs.signalRefs) {
             if (!signalIdByName.contains(ref.first)) {
                 *errorMessage = QString("Message '%1' uses signal '%2', which does not exist.")
                                     .arg(message.name, ref.first);
@@ -374,7 +458,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         }
     }
 
-    database.replaceAll(loadedSignals, loadedMessages);
+    database.replaceAll(loadedSignals, loadedMessages, loadedNodes);
     return true;
 }
 

@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include "message.h"
+#include "node.h"
 #include "signal.h"
 
 #include <QObject>
@@ -43,11 +44,26 @@ public:
     bool updateMessage(const Message &message);
     bool removeMessage(int id);
 
+    // Network nodes: same idea again.
+    const QVector<Node> &allNodes() const;
+    QStringList nodeNames() const;
+    const Node *findNode(int id) const;
+    int indexOfNode(int id) const;
+    int addNode(Node node);
+    bool updateNode(const Node &node);
+    // Deletes the node. A node that still transmits or receives a message is not
+    // deleted: returns false then, and also if there is no node with this id.
+    bool removeNode(int id);
+    // Ids of the messages this node transmits / receives, in allMessages() order.
+    QVector<int> messagesTransmittedBy(int nodeId) const;
+    QVector<int> messagesReceivedBy(int nodeId) const;
+
     // Throws away everything and stores these instead, each with a new unique id.
-    // Used when a file is opened. The signals must come with ids that are unique
-    // among them; the messages' signal mappings refer to those ids and are
-    // renumbered along with them. Mappings to unknown signals are dropped.
-    void replaceAll(QVector<Signal> newSignals, QVector<Message> newMessages);
+    // Used when a file is opened. The signals and nodes must come with ids that
+    // are unique among them; the messages' signal mappings, transmitter and
+    // receivers refer to those ids and are renumbered along with them.
+    // References to unknown signals or nodes are dropped.
+    void replaceAll(QVector<Signal> newSignals, QVector<Message> newMessages, QVector<Node> newNodes);
 
 signals:
     // Emitted before and after a signal is inserted at position `index` of allSignals().
@@ -63,6 +79,11 @@ signals:
     void messageChanged(int id);
     void messageAboutToBeRemoved(int index);
     void messageRemoved(int id);
+    void nodeAboutToBeAdded(int index);
+    void nodeAdded(int id);
+    void nodeChanged(int id);
+    void nodeAboutToBeRemoved(int index);
+    void nodeRemoved(int id);
     // Emitted before and after everything is replaced at once (see replaceAll()).
     void aboutToBeReset();
     void wasReset();
@@ -70,7 +91,8 @@ signals:
 private:
     QVector<Signal> m_signals;
     QVector<Message> m_messages;
-    int m_nextId = 1; // shared by signals and messages, so every id is unique
+    QVector<Node> m_nodes;
+    int m_nextId = 1; // shared by signals, messages and nodes, so every id is unique
 };
 
 #endif // DATABASE_H

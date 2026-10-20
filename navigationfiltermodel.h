@@ -7,7 +7,8 @@
 //  - hides the items whose name does not match the search text,
 //  - keeps the items under each heading in alphabetical order (A-Z, ignoring case).
 // The category headings (Network, Messages, Signals, ...) are always shown,
-// in their fixed order, so the tree keeps its shape.
+// in their fixed order, so the tree keeps its shape. The search only looks at
+// the items directly under a heading; what is inside a node comes along with it.
 //
 //   Database -> NavigationModel -> NavigationFilterModel -> QTreeView
 //

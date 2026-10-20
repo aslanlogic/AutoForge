@@ -1,4 +1,5 @@
 #include "navigationfiltermodel.h"
+#include "navigationmodel.h"
 
 NavigationFilterModel::NavigationFilterModel(QObject *parent)
     : QSortFilterProxyModel(parent)
@@ -12,14 +13,21 @@ bool NavigationFilterModel::filterAcceptsRow(int sourceRow, const QModelIndex &s
     if (!sourceParent.isValid())
         return true;
 
+    // Rows inside a node (its Tx/Rx folders and their messages): shown whenever
+    // the node itself is shown.
+    if (sourceParent.parent().isValid())
+        return true;
+
     // Items: the default check, i.e. does the name contain the search text.
     return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
 }
 
 bool NavigationFilterModel::lessThan(const QModelIndex &sourceLeft, const QModelIndex &sourceRight) const
 {
-    // Headings: keep the order NavigationModel gives them.
-    if (!sourceLeft.parent().isValid())
+    // Headings, and the Tx/Rx folders under a node: keep the order NavigationModel gives them.
+    const int kind = sourceLeft.data(NavigationModel::ItemKindRole).toInt();
+    if (kind == NavigationModel::Heading || kind == NavigationModel::NodeTxFolder
+        || kind == NavigationModel::NodeRxFolder)
         return sourceLeft.row() < sourceRight.row();
 
     // Items: by name, ignoring case. Names that differ only in case

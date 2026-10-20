@@ -9,6 +9,11 @@ class Database;
 //
 //   <?xml version="1.0" encoding="UTF-8"?>
 //   <FrameForge version="1">
+//     <Nodes>
+//       <Node name="EngineECU">
+//         <Comment>Engine control unit</Comment>
+//       </Node>
+//     </Nodes>
 //     <Signals>
 //       <Signal name="EngineSpeed" length="16" byteOrder="motorola" valueType="unsigned"
 //               unit="rpm" initialValue="0" factor="0.25" offset="0" minimum="0" maximum="16383.75">
@@ -17,14 +22,15 @@ class Database;
 //     </Signals>
 //     <Messages>
 //       <Message name="EngineData" type="can-standard" frameId="0x100" length="8"
-//                txMethod="cyclic" cycleTime="100">
+//                txMethod="cyclic" cycleTime="100" transmitter="EngineECU">
+//         <Receiver name="Dashboard"/>
 //         <SignalRef name="EngineSpeed" startBit="7"/>
 //         <Comment>Engine status</Comment>
 //       </Message>
 //     </Messages>
 //   </FrameForge>
 //
-// Signal and message ids are not saved; they are assigned again when the file is loaded.
+// Ids are not saved; they are assigned again when the file is loaded.
 namespace XmlStorage {
 
 // On failure these return false and put a human-readable reason in *errorMessage.

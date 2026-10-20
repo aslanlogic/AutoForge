@@ -2,6 +2,7 @@
 #define MESSAGEDIALOG_H
 
 #include "message.h"
+#include "node.h"
 
 #include <QDialog>
 #include <QHash>
@@ -11,6 +12,7 @@ class MessageLayoutWidget;
 class QComboBox;
 class QLabel;
 class QLineEdit;
+class QListWidget;
 class QPlainTextEdit;
 class QSpinBox;
 class QTableWidget;
@@ -24,8 +26,10 @@ class MessageDialog : public QDialog
 public:
     // existingNames: names already taken by other messages; OK is refused for these.
     // allSignals: the signals that can be placed in the message.
+    // allNodes: the nodes that can transmit or receive it.
     MessageDialog(const Message &message, const QStringList &existingNames,
-                  const QVector<Signal> &allSignals, QWidget *parent = nullptr);
+                  const QVector<Signal> &allSignals, const QVector<Node> &allNodes,
+                  QWidget *parent = nullptr);
 
     Message message() const;
 
@@ -42,6 +46,7 @@ private slots:
 private:
     QWidget *createDefinitionTab();
     QWidget *createSignalsTab();
+    QWidget *createReceiversTab();
     QWidget *createLayoutTab();
     QWidget *createCommentTab();
     void refreshSignals(); // redraws the Signals and Layout tabs from m_mappings
@@ -52,6 +57,7 @@ private:
     Message m_message; // the message as it was when the dialog opened
     QStringList m_existingNames;
     QHash<int, Signal> m_signalsById;
+    QVector<Node> m_nodes; // sorted by name, for the transmitter box and receiver list
     QVector<SignalMapping> m_mappings; // edited here; copied into the message on OK
     QTabWidget *m_tabs = nullptr;
 
@@ -64,6 +70,9 @@ private:
     QComboBox *m_transmitterCombo = nullptr;
     QComboBox *m_txMethodCombo = nullptr;
     QSpinBox *m_cycleTimeSpin = nullptr;
+
+    // Receivers tab
+    QListWidget *m_receiversList = nullptr;
 
     // Signals and Layout tabs
     QTableWidget *m_signalsTable = nullptr;

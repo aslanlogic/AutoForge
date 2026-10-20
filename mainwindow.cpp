@@ -5,6 +5,10 @@
 #include "messagetablemodel.h"
 #include "navigationfiltermodel.h"
 #include "navigationmodel.h"
+#include "networkpropertieswidget.h"
+#include "nodedialog.h"
+#include "nodepropertieswidget.h"
+#include "nodetablemodel.h"
 #include "signaldialog.h"
 #include "signalpropertieswidget.h"
 #include "signaltablemodel.h"
@@ -46,6 +50,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::messageChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::signalRemoved, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::messageRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::nodeAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::nodeChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::nodeRemoved, this, [this] { setWindowModified(true); });
 }
 
 void MainWindow::setupMenus()
@@ -104,37 +111,42 @@ void MainWindow::setupLayout()
     // Right pane: shows what is clicked in the tree.
     m_rightPane = new QStackedWidget(m_splitter);
     m_emptyPage = new QWidget;
+    m_networkProperties = new NetworkPropertiesWidget;
     m_signalProperties = new SignalPropertiesWidget;
     m_messageProperties = new MessagePropertiesWidget;
+    m_nodeProperties = new NodePropertiesWidget;
     m_signalTableModel = new SignalTableModel(m_database, this);
     m_messageTableModel = new MessageTableModel(m_database, this);
+    m_nodeTableModel = new NodeTableModel(m_database, this);
     m_signalTable = createSortableTable(m_signalTableModel, SignalTableModel::SortRole);
     m_messageTable = createSortableTable(m_messageTableModel, MessageTableModel::SortRole);
+    m_nodeTable = createSortableTable(m_nodeTableModel, NodeTableModel::SortRole);
     m_rightPane->addWidget(m_emptyPage);
+    m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_signalProperties);
     m_rightPane->addWidget(m_signalTable);
     m_rightPane->addWidget(m_messageProperties);
     m_rightPane->addWidget(m_messageTable);
+    m_rightPane->addWidget(m_nodeProperties);
+    m_rightPane->addWidget(m_nodeTable);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
 
-    // Keep the right pane up to date when what it shows is edited or deleted.
-    connect(m_database, &Database::signalChanged, this, &MainWindow::onSignalChanged);
-    connect(m_database, &Database::signalRemoved, this, [this](int id) {
-        if (id == m_shownSignalId)
-            showEmptyPage();
-    });
-    connect(m_database, &Database::messageChanged, this, [this](int id) {
-        if (id == m_shownMessageId)
-            showMessageProperties(id);
-    });
-    connect(m_database, &Database::messageRemoved, this, [this](int id) {
-        if (id == m_shownMessageId)
-            showEmptyPage();
-    });
+    // Keep the right pane up to date. The views show things from several places
+    // (a message view lists signal and node names, a node view lists messages, ...),
+    // so simply redraw the shown view after every change.
+    connect(m_database, &Database::signalAdded, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::signalChanged, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::signalRemoved, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::messageAdded, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::messageChanged, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::messageRemoved, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::nodeAdded, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::nodeChanged, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::nodeRemoved, this, &MainWindow::refreshRightPane);
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
-        showEmptyPage();
+        showView(View::Empty);
         m_navigationTree->expand(
             m_navigationFilter->mapFromSource(m_navigationModel->categoryIndex(NavigationModel::Signals)));
     });
@@ -183,24 +195,31 @@ QTableView *MainWindow::createSortableTable(QAbstractItemModel *model, int sortR
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
 {
     const QModelIndex index = m_navigationFilter->mapToSource(m_navigationTree->indexAt(pos));
-    const QModelIndex signalsHeading = m_navigationModel->categoryIndex(NavigationModel::Signals);
-    const QModelIndex messagesHeading = m_navigationModel->categoryIndex(NavigationModel::Messages);
+    if (!index.isValid())
+        return;
+    const int kind = index.data(NavigationModel::ItemKindRole).toInt();
     const int id = index.data(NavigationModel::ObjectIdRole).toInt();
 
     // Use the desktop theme's icons, falling back to Qt's built-in ones where no theme exists (e.g. Windows).
     const QIcon newIcon = QIcon::fromTheme("document-new", style()->standardIcon(QStyle::SP_FileIcon));
     const QIcon deleteIcon = QIcon::fromTheme("edit-delete", style()->standardIcon(QStyle::SP_TrashIcon));
 
-    // Headings offer "New", items under them offer "Delete".
+    // Headings offer "New", the items directly under them offer "Delete".
     QMenu menu(this);
-    if (index == signalsHeading)
-        menu.addAction(newIcon, "New", this, &MainWindow::createNewSignal);
-    else if (index == messagesHeading)
-        menu.addAction(newIcon, "New", this, &MainWindow::createNewMessage);
-    else if (index.parent() == signalsHeading)
+    if (kind == NavigationModel::Heading) {
+        if (index.row() == NavigationModel::Signals)
+            menu.addAction(newIcon, "New", this, &MainWindow::createNewSignal);
+        else if (index.row() == NavigationModel::Messages)
+            menu.addAction(newIcon, "New", this, &MainWindow::createNewMessage);
+        else if (index.row() == NavigationModel::NetworkNodes)
+            menu.addAction(newIcon, "New", this, &MainWindow::createNewNode);
+    } else if (kind == NavigationModel::SignalItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSignal(id); });
-    else if (index.parent() == messagesHeading)
+    } else if (kind == NavigationModel::MessageItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteMessage(id); });
+    } else if (kind == NavigationModel::NodeItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteNode(id); });
+    }
 
     if (!menu.isEmpty())
         menu.exec(m_navigationTree->viewport()->mapToGlobal(pos));
@@ -229,10 +248,19 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &filterIndex)
 {
     const QModelIndex index = m_navigationFilter->mapToSource(filterIndex);
     const int id = index.data(NavigationModel::ObjectIdRole).toInt();
-    if (index.parent() == m_navigationModel->categoryIndex(NavigationModel::Signals))
+    switch (index.data(NavigationModel::ItemKindRole).toInt()) {
+    case NavigationModel::SignalItem:
         editSignal(id);
-    else if (index.parent() == m_navigationModel->categoryIndex(NavigationModel::Messages))
+        break;
+    case NavigationModel::MessageItem:
+    case NavigationModel::NodeTxMessage:
+    case NavigationModel::NodeRxMessage:
         editMessage(id);
+        break;
+    case NavigationModel::NodeItem:
+        editNode(id);
+        break;
+    }
 }
 
 void MainWindow::editSignal(int id)
@@ -264,7 +292,7 @@ void MainWindow::createNewMessage()
         newMessage.name = QString("New_Message_%1").arg(number++);
     } while (existingNames.contains(newMessage.name));
 
-    MessageDialog dialog(newMessage, existingNames, m_database->allSignals(), this);
+    MessageDialog dialog(newMessage, existingNames, m_database->allSignals(), m_database->allNodes(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -281,7 +309,7 @@ void MainWindow::editMessage(int id)
     QStringList otherNames = m_database->messageNames();
     otherNames.removeOne(message.name);
 
-    MessageDialog dialog(message, otherNames, m_database->allSignals(), this);
+    MessageDialog dialog(message, otherNames, m_database->allSignals(), m_database->allNodes(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -323,73 +351,155 @@ void MainWindow::deleteMessage(int id)
         m_database->removeMessage(id);
 }
 
+void MainWindow::createNewNode()
+{
+    const QStringList existingNames = m_database->nodeNames();
+
+    // Pick the first free default name: New_Node_1, New_Node_2, ...
+    Node newNode;
+    int number = 1;
+    do {
+        newNode.name = QString("New_Node_%1").arg(number++);
+    } while (existingNames.contains(newNode.name));
+
+    NodeDialog dialog(newNode, existingNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addNode(dialog.node());
+}
+
+void MainWindow::editNode(int id)
+{
+    const Node *stored = m_database->findNode(id);
+    if (!stored)
+        return;
+    const Node node = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->nodeNames();
+    otherNames.removeOne(node.name);
+
+    NodeDialog dialog(node, otherNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateNode(dialog.node());
+}
+
+void MainWindow::deleteNode(int id)
+{
+    const Node *node = m_database->findNode(id);
+    if (!node)
+        return;
+
+    // A node that transmits or receives a message cannot be deleted (Database refuses it too).
+    QStringList usedIn;
+    for (int messageId : m_database->messagesTransmittedBy(id))
+        usedIn << m_database->findMessage(messageId)->name + " (Tx)";
+    for (int messageId : m_database->messagesReceivedBy(id))
+        usedIn << m_database->findMessage(messageId)->name + " (Rx)";
+    if (!usedIn.isEmpty()) {
+        QMessageBox::information(this, "Delete Network Node",
+                                 QString("The network node '%1' cannot be deleted because it "
+                                         "transmits or receives these messages:\n%2\n\n"
+                                         "Remove it from them first.")
+                                     .arg(node->name, usedIn.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the network node '%1'?").arg(node->name);
+    if (QMessageBox::question(this, "Delete Network Node", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeNode(id);
+}
+
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
 {
     const QModelIndex current = m_navigationFilter->mapToSource(filterCurrent);
-    const QModelIndex signalsHeading = m_navigationModel->categoryIndex(NavigationModel::Signals);
-    const QModelIndex messagesHeading = m_navigationModel->categoryIndex(NavigationModel::Messages);
+    if (!current.isValid()) {
+        showView(View::Empty);
+        return;
+    }
     const int id = current.data(NavigationModel::ObjectIdRole).toInt();
 
-    if (current == signalsHeading)
-        showTable(m_signalTable);
-    else if (current.parent() == signalsHeading)
-        showSignalProperties(id);
-    else if (current == messagesHeading)
-        showTable(m_messageTable);
-    else if (current.parent() == messagesHeading)
-        showMessageProperties(id);
-    else
-        showEmptyPage();
-}
-
-void MainWindow::onSignalChanged(int id)
-{
-    if (id == m_shownSignalId)
-        showSignalProperties(id);
-    // The shown message lists its signals' names and lengths.
-    if (m_shownMessageId != 0)
-        showMessageProperties(m_shownMessageId);
-}
-
-void MainWindow::showEmptyPage()
-{
-    m_shownSignalId = 0;
-    m_shownMessageId = 0;
-    m_rightPane->setCurrentWidget(m_emptyPage);
-}
-
-void MainWindow::showSignalProperties(int id)
-{
-    const Signal *signal = m_database->findSignal(id);
-    if (!signal) {
-        showEmptyPage();
-        return;
+    switch (current.data(NavigationModel::ItemKindRole).toInt()) {
+    case NavigationModel::Heading:
+        switch (current.row()) {
+        case NavigationModel::Network:      showView(View::Network); break;
+        case NavigationModel::NetworkNodes: showTable(m_nodeTable); break;
+        case NavigationModel::Messages:     showTable(m_messageTable); break;
+        case NavigationModel::Signals:      showTable(m_signalTable); break;
+        }
+        break;
+    case NavigationModel::SignalItem:
+        showView(View::Signal, id);
+        break;
+    case NavigationModel::MessageItem:
+    case NavigationModel::NodeTxMessage:
+    case NavigationModel::NodeRxMessage:
+        showView(View::Message, id);
+        break;
+    case NavigationModel::NodeItem:
+    case NavigationModel::NodeTxFolder: // the node view lists its Tx and Rx messages
+    case NavigationModel::NodeRxFolder:
+        showView(View::Node, id);
+        break;
     }
-    m_shownSignalId = id;
-    m_shownMessageId = 0;
-    m_signalProperties->showSignal(*signal);
-    m_rightPane->setCurrentWidget(m_signalProperties);
 }
 
-void MainWindow::showMessageProperties(int id)
+void MainWindow::showView(View view, int id)
 {
-    const Message *message = m_database->findMessage(id);
-    if (!message) {
-        showEmptyPage();
-        return;
-    }
-    m_shownSignalId = 0;
-    m_shownMessageId = id;
-    m_messageProperties->showMessage(*message, *m_database);
-    m_rightPane->setCurrentWidget(m_messageProperties);
+    m_shownView = view;
+    m_shownId = id;
+    refreshRightPane();
 }
 
 void MainWindow::showTable(QTableView *table)
 {
-    // The tables update themselves through their models; nothing to refresh by hand.
-    m_shownSignalId = 0;
-    m_shownMessageId = 0;
+    // The tables update themselves through their models; nothing to redraw by hand.
+    m_shownView = View::Table;
+    m_shownId = 0;
     m_rightPane->setCurrentWidget(table);
+}
+
+void MainWindow::refreshRightPane()
+{
+    switch (m_shownView) {
+    case View::Table:
+        return;
+    case View::Network:
+        m_networkProperties->showNetwork(*m_database, m_currentFilePath);
+        m_rightPane->setCurrentWidget(m_networkProperties);
+        return;
+    case View::Signal:
+        if (const Signal *signal = m_database->findSignal(m_shownId)) {
+            m_signalProperties->showSignal(*signal);
+            m_rightPane->setCurrentWidget(m_signalProperties);
+            return;
+        }
+        break;
+    case View::Message:
+        if (const Message *message = m_database->findMessage(m_shownId)) {
+            m_messageProperties->showMessage(*message, *m_database);
+            m_rightPane->setCurrentWidget(m_messageProperties);
+            return;
+        }
+        break;
+    case View::Node:
+        if (const Node *node = m_database->findNode(m_shownId)) {
+            m_nodeProperties->showNode(*node, *m_database);
+            m_rightPane->setCurrentWidget(m_nodeProperties);
+            return;
+        }
+        break;
+    case View::Empty:
+        break;
+    }
+
+    // Nothing to show, or what was shown has been deleted.
+    m_shownView = View::Empty;
+    m_shownId = 0;
+    m_rightPane->setCurrentWidget(m_emptyPage);
 }
 
 namespace {
@@ -449,6 +559,7 @@ void MainWindow::setCurrentFilePath(const QString &filePath)
     m_currentFilePath = filePath;
     const QString fileName = filePath.isEmpty() ? "Untitled" : QFileInfo(filePath).fileName();
     setWindowTitle(QString("%1[*] - FrameForge").arg(fileName));
+    refreshRightPane(); // the Network view shows the file path
 }
 
 bool MainWindow::maybeSave()
