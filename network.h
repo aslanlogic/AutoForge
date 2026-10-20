@@ -1,7 +1,6 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include <QByteArray>
 #include <QString>
 
 // The settings each protocol needs. Only the one of the network's active
@@ -28,7 +27,7 @@ struct UartSettings
     enum class Parity { None, Even, Odd, Mark, Space };
     enum class StopBits { One, OneAndHalf, Two };
     enum class FlowControl { None, Hardware, Software }; // Hardware = RTS/CTS, Software = XON/XOFF
-    enum class Checksum { None, Xor8, Sum8, Crc16Ccitt };
+    enum class Crc { Crc8, Crc16, Crc32 };
 
     int baudRate = 115200;
     int dataBits = 8;
@@ -36,11 +35,12 @@ struct UartSettings
     StopBits stopBits = StopBits::One;
     FlowControl flowControl = FlowControl::None;
 
-    // How messages are framed on the serial line:
-    //   [start bytes] [message ID, idSize bytes] [payload] [checksum]
-    QByteArray startBytes = QByteArray::fromHex("AA55");
+    // How messages are framed on the serial line: each message is
+    //   [message ID, idSize bytes] [DLC, 1 byte] [payload, DLC bytes] [CRC]
+    // COBS-encoded and ended with a 0x00 byte. COBS removes every 0x00 from the
+    // encoded bytes, so a 0x00 always marks the end of a message.
     int idSize = 1; // bytes
-    Checksum checksum = Checksum::None;
+    Crc crc = Crc::Crc16;
 };
 
 struct UdpSettings
@@ -115,13 +115,12 @@ inline QString toString(UartSettings::FlowControl flowControl)
     return QString();
 }
 
-inline QString toString(UartSettings::Checksum checksum)
+inline QString toString(UartSettings::Crc crc)
 {
-    switch (checksum) {
-    case UartSettings::Checksum::None:       return "None";
-    case UartSettings::Checksum::Xor8:       return "XOR (8 bit)";
-    case UartSettings::Checksum::Sum8:       return "Sum (8 bit)";
-    case UartSettings::Checksum::Crc16Ccitt: return "CRC-16/CCITT";
+    switch (crc) {
+    case UartSettings::Crc::Crc8:  return "CRC-8";
+    case UartSettings::Crc::Crc16: return "CRC-16";
+    case UartSettings::Crc::Crc32: return "CRC-32";
     }
     return QString();
 }
@@ -134,12 +133,6 @@ inline QString toString(UdpSettings::Mode mode)
     case UdpSettings::Mode::Multicast: return "Multicast";
     }
     return QString();
-}
-
-// Start bytes are shown and saved as hex pairs: "AA 55".
-inline QString bytesToHexText(const QByteArray &bytes)
-{
-    return QString::fromLatin1(bytes.toHex(' ').toUpper());
 }
 
 #endif // NETWORK_H

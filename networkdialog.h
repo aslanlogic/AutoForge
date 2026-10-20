@@ -67,9 +67,8 @@ private:
     QComboBox *m_uartParityCombo = nullptr;
     QComboBox *m_uartStopBitsCombo = nullptr;
     QComboBox *m_uartFlowControlCombo = nullptr;
-    QLineEdit *m_uartStartBytesEdit = nullptr;
     QSpinBox *m_uartIdSizeSpin = nullptr;
-    QComboBox *m_uartChecksumCombo = nullptr;
+    QComboBox *m_uartCrcCombo = nullptr;
 
     // UDP tab
     QComboBox *m_udpModeCombo = nullptr;

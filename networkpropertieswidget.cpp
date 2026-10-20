@@ -36,9 +36,9 @@ QVector<QPair<QString, QString>> protocolRows(const Network &network)
             {"Parity", toString(network.uart.parity)},
             {"Stop bits", toString(network.uart.stopBits)},
             {"Flow control", toString(network.uart.flowControl)},
-            {"Start bytes", bytesToHexText(network.uart.startBytes)},
+            {"Framing", "COBS: [ID] [DLC] [payload] [CRC], ended with 0x00"},
             {"ID size", QString("%1 byte(s)").arg(network.uart.idSize)},
-            {"Checksum", toString(network.uart.checksum)},
+            {"CRC", toString(network.uart.crc)},
         };
     case Network::Protocol::Udp: {
         QVector<QPair<QString, QString>> rows = {

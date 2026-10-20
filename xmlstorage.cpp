@@ -3,7 +3,6 @@
 
 #include <QFile>
 #include <QHash>
-#include <QRegularExpression>
 #include <QLocale>
 #include <QSaveFile>
 #include <QSet>
@@ -241,9 +240,8 @@ const QVector<QPair<QString, UartSettings::StopBits>> StopBitsWords = {
 const QVector<QPair<QString, UartSettings::FlowControl>> FlowControlWords = {
     {"none", UartSettings::FlowControl::None}, {"hardware", UartSettings::FlowControl::Hardware},
     {"software", UartSettings::FlowControl::Software}};
-const QVector<QPair<QString, UartSettings::Checksum>> ChecksumWords = {
-    {"none", UartSettings::Checksum::None}, {"xor8", UartSettings::Checksum::Xor8},
-    {"sum8", UartSettings::Checksum::Sum8}, {"crc16-ccitt", UartSettings::Checksum::Crc16Ccitt}};
+const QVector<QPair<QString, UartSettings::Crc>> CrcWords = {
+    {"crc8", UartSettings::Crc::Crc8}, {"crc16", UartSettings::Crc::Crc16}, {"crc32", UartSettings::Crc::Crc32}};
 const QVector<QPair<QString, UdpSettings::Mode>> UdpModeWords = {
     {"unicast", UdpSettings::Mode::Unicast}, {"broadcast", UdpSettings::Mode::Broadcast},
     {"multicast", UdpSettings::Mode::Multicast}};
@@ -325,20 +323,6 @@ public:
         fail(name, "one of: " + allowed.join(", "));
     }
 
-    // Hex pairs such as "AA 55", 1 to 8 bytes.
-    void readHexBytes(const QString &name, QByteArray *value)
-    {
-        if (!m_attributes.hasAttribute(name))
-            return;
-        QString digits = m_attributes.value(name).toString();
-        digits.remove(' ');
-        static const QRegularExpression hexPairs("^([0-9A-Fa-f]{2}){1,8}$");
-        if (!hexPairs.match(digits).hasMatch())
-            fail(name, "1 to 8 bytes written as hex, e.g. \"AA 55\"");
-        else
-            *value = QByteArray::fromHex(digits.toLatin1());
-    }
-
 private:
     void fail(const QString &name, const QString &expected)
     {
@@ -378,9 +362,8 @@ Network readNetwork(QXmlStreamReader &reader)
             attributes.read("parity", &network.uart.parity, ParityWords);
             attributes.read("stopBits", &network.uart.stopBits, StopBitsWords);
             attributes.read("flowControl", &network.uart.flowControl, FlowControlWords);
-            attributes.readHexBytes("startBytes", &network.uart.startBytes);
             attributes.read("idSize", &network.uart.idSize, 1, 4);
-            attributes.read("checksum", &network.uart.checksum, ChecksumWords);
+            attributes.read("crc", &network.uart.crc, CrcWords);
         } else if (element == "Udp" && network.protocol == Network::Protocol::Udp) {
             attributes.read("mode", &network.udp.mode, UdpModeWords);
             attributes.read("localAddress", &network.udp.localAddress);
@@ -423,9 +406,8 @@ void writeNetwork(QXmlStreamWriter &writer, const Network &network)
         writer.writeAttribute("parity", enumToXml(network.uart.parity, ParityWords));
         writer.writeAttribute("stopBits", enumToXml(network.uart.stopBits, StopBitsWords));
         writer.writeAttribute("flowControl", enumToXml(network.uart.flowControl, FlowControlWords));
-        writer.writeAttribute("startBytes", bytesToHexText(network.uart.startBytes));
         writer.writeAttribute("idSize", QString::number(network.uart.idSize));
-        writer.writeAttribute("checksum", enumToXml(network.uart.checksum, ChecksumWords));
+        writer.writeAttribute("crc", enumToXml(network.uart.crc, CrcWords));
         break;
     case Network::Protocol::Udp:
         writer.writeEmptyElement("Udp");

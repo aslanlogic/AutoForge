@@ -69,18 +69,6 @@ bool isMulticastAddress(const QString &text)
     return firstNumber >= 224 && firstNumber <= 239;
 }
 
-// "AA 55" or "aa55" -> the bytes. Returns false if the text is not hex pairs.
-bool parseHexBytes(const QString &text, QByteArray *bytes)
-{
-    QString digits = text;
-    digits.remove(QRegularExpression("\\s"));
-    static const QRegularExpression hexPairs("^([0-9A-Fa-f]{2})*$");
-    if (!hexPairs.match(digits).hasMatch())
-        return false;
-    *bytes = QByteArray::fromHex(digits.toLatin1());
-    return true;
-}
-
 } // namespace
 
 NetworkDialog::NetworkDialog(const Network &network, const QVector<Message> &messages, QWidget *parent)
@@ -128,9 +116,8 @@ NetworkDialog::NetworkDialog(const Network &network, const QVector<Message> &mes
     m_uartParityCombo->setCurrentIndex(static_cast<int>(network.uart.parity));
     m_uartStopBitsCombo->setCurrentIndex(static_cast<int>(network.uart.stopBits));
     m_uartFlowControlCombo->setCurrentIndex(static_cast<int>(network.uart.flowControl));
-    m_uartStartBytesEdit->setText(bytesToHexText(network.uart.startBytes));
     m_uartIdSizeSpin->setValue(network.uart.idSize);
-    m_uartChecksumCombo->setCurrentIndex(static_cast<int>(network.uart.checksum));
+    m_uartCrcCombo->setCurrentIndex(static_cast<int>(network.uart.crc));
 
     m_udpModeCombo->setCurrentIndex(static_cast<int>(network.udp.mode));
     m_udpLocalAddressEdit->setText(network.udp.localAddress);
@@ -178,9 +165,8 @@ Network NetworkDialog::network() const
         network.uart.parity = static_cast<UartSettings::Parity>(m_uartParityCombo->currentIndex());
         network.uart.stopBits = static_cast<UartSettings::StopBits>(m_uartStopBitsCombo->currentIndex());
         network.uart.flowControl = static_cast<UartSettings::FlowControl>(m_uartFlowControlCombo->currentIndex());
-        parseHexBytes(m_uartStartBytesEdit->text(), &network.uart.startBytes);
         network.uart.idSize = m_uartIdSizeSpin->value();
-        network.uart.checksum = static_cast<UartSettings::Checksum>(m_uartChecksumCombo->currentIndex());
+        network.uart.crc = static_cast<UartSettings::Crc>(m_uartCrcCombo->currentIndex());
         break;
     case Network::Protocol::Udp:
         network.udp.mode = static_cast<UdpSettings::Mode>(m_udpModeCombo->currentIndex());
@@ -220,19 +206,12 @@ void NetworkDialog::accept()
             return;
         }
         break;
-    case Network::Protocol::Uart: {
-        QByteArray startBytes;
+    case Network::Protocol::Uart:
         if (network.uart.baudRate < 1) {
             showError(m_uartBaudRateCombo, "Please enter the baud rate.");
             return;
         }
-        if (!parseHexBytes(m_uartStartBytesEdit->text(), &startBytes) || startBytes.isEmpty()
-            || startBytes.size() > 8) {
-            showError(m_uartStartBytesEdit, "The start bytes must be 1 to 8 bytes written as hex, e.g. \"AA 55\".");
-            return;
-        }
         break;
-    }
     case Network::Protocol::Udp:
         if (!isIpv4Address(network.udp.localAddress)) {
             showError(m_udpLocalAddressEdit, "The local address must be an IPv4 address, e.g. 0.0.0.0 or 192.168.0.5.");
@@ -350,13 +329,10 @@ QWidget *NetworkDialog::createUartTab()
                              UartSettings::FlowControl::Software})
         m_uartFlowControlCombo->addItem(toString(flowControl));
 
-    m_uartStartBytesEdit = new QLineEdit;
-    m_uartStartBytesEdit->setPlaceholderText("e.g. AA 55");
     m_uartIdSizeSpin = createSpin(1, 4, " byte(s)");
-    m_uartChecksumCombo = new QComboBox;
-    for (auto checksum : {UartSettings::Checksum::None, UartSettings::Checksum::Xor8,
-                          UartSettings::Checksum::Sum8, UartSettings::Checksum::Crc16Ccitt})
-        m_uartChecksumCombo->addItem(toString(checksum));
+    m_uartCrcCombo = new QComboBox;
+    for (auto crc : {UartSettings::Crc::Crc8, UartSettings::Crc::Crc16, UartSettings::Crc::Crc32})
+        m_uartCrcCombo->addItem(toString(crc));
 
     auto *lineGroup = new QGroupBox("Serial line");
     auto *lineForm = new QFormLayout(lineGroup);
@@ -369,10 +345,10 @@ QWidget *NetworkDialog::createUartTab()
     // A serial line is just a stream of bytes; this is how a message is found in it.
     auto *frameGroup = new QGroupBox("Frame format");
     auto *frameForm = new QFormLayout(frameGroup);
-    frameForm->addRow(new QLabel("Every message is sent as: [start bytes] [ID] [payload] [checksum]"));
-    frameForm->addRow("Start bytes (hex):", m_uartStartBytesEdit);
+    frameForm->addRow(new QLabel("Every message is sent as [ID] [DLC] [payload] [CRC],\n"
+                                 "COBS-encoded and ended with a 0x00 byte. The DLC is 1 byte."));
     frameForm->addRow("ID size:", m_uartIdSizeSpin);
-    frameForm->addRow("Checksum:", m_uartChecksumCombo);
+    frameForm->addRow("CRC:", m_uartCrcCombo);
 
     auto *layout = new QVBoxLayout(tab);
     layout->addWidget(lineGroup);

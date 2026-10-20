@@ -91,13 +91,13 @@ inline quint32 maxFrameId(const Network &network, Message::IdFormat idFormat)
     return 0;
 }
 
-// Largest payload in bytes. UDP: the most one datagram can carry.
+// Largest payload in bytes. UART: the DLC is one byte. UDP: the most one datagram can carry.
 inline int maxLength(Network::Protocol protocol)
 {
     switch (protocol) {
     case Network::Protocol::Can:   return 8;
     case Network::Protocol::CanFd: return 64;
-    case Network::Protocol::Uart:  return 65535;
+    case Network::Protocol::Uart:  return 255;
     case Network::Protocol::Udp:   return 65507;
     }
     return 0;
