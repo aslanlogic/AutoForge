@@ -94,6 +94,8 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         const Signal &signal = m_database->allSignals().at(index.row());
         if (role == Qt::DisplayRole)
             return signal.name;
+        if (role == Qt::DecorationRole)
+            return QIcon(":/icons/signals.svg");
         if (role == ObjectIdRole)
             return signal.id;
     }
