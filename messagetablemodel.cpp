@@ -26,6 +26,11 @@ MessageTableModel::MessageTableModel(Database *database, QObject *parent)
         if (rowCount() > 0)
             emit dataChanged(index(0, Transmitter), index(rowCount() - 1, Receivers));
     });
+    // The ID Format column depends on the network's protocol.
+    connect(m_database, &Database::networkChanged, this, [this] {
+        if (rowCount() > 0)
+            emit dataChanged(index(0, IdFormat), index(rowCount() - 1, IdFormat));
+    });
     connect(m_database, &Database::aboutToBeReset, this, &MessageTableModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &MessageTableModel::endResetModel);
 }
@@ -50,7 +55,9 @@ QVariant MessageTableModel::data(const QModelIndex &index, int role) const
 
     switch (index.column()) {
     case Name:        return message.name;
-    case Type:        return toString(message.type);
+    case IdFormat:
+        // Only CAN and CAN FD have an ID format.
+        return isCan(m_database->network().protocol) ? toString(message.idFormat) : QString();
     case FrameId:     return sorting ? QVariant(message.frameId) : QVariant(frameIdToText(message.frameId));
     case Length:      return message.length;
     case Transmitter: {
@@ -83,7 +90,7 @@ QVariant MessageTableModel::headerData(int section, Qt::Orientation orientation,
         return QVariant();
 
     static const char *const headers[ColumnCount] = {
-        "Name", "Type", "ID", "Length [Byte]", "Transmitter", "Receivers",
+        "Name", "ID Format", "ID", "Length [Byte]", "Transmitter", "Receivers",
         "Tx Method", "Cycle Time [ms]", "Signals", "Comment"};
     return QString(headers[section]);
 }

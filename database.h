@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include "message.h"
+#include "network.h"
 #include "node.h"
 #include "signal.h"
 
@@ -17,6 +18,10 @@ class Database : public QObject
 
 public:
     explicit Database(QObject *parent = nullptr);
+
+    // The network: its active protocol and that protocol's settings.
+    const Network &network() const;
+    void setNetwork(const Network &network);
 
     const QVector<Signal> &allSignals() const;
     QStringList signalNames() const;
@@ -63,9 +68,11 @@ public:
     // are unique among them; the messages' signal mappings, transmitter and
     // receivers refer to those ids and are renumbered along with them.
     // References to unknown signals or nodes are dropped.
-    void replaceAll(QVector<Signal> newSignals, QVector<Message> newMessages, QVector<Node> newNodes);
+    void replaceAll(const Network &newNetwork, QVector<Signal> newSignals, QVector<Message> newMessages,
+                    QVector<Node> newNodes);
 
 signals:
+    void networkChanged();
     // Emitted before and after a signal is inserted at position `index` of allSignals().
     // Item models need both to keep their views in sync.
     void signalAboutToBeAdded(int index);
@@ -89,6 +96,7 @@ signals:
     void wasReset();
 
 private:
+    Network m_network;
     QVector<Signal> m_signals;
     QVector<Message> m_messages;
     QVector<Node> m_nodes;

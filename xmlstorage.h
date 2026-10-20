@@ -9,6 +9,9 @@ class Database;
 //
 //   <?xml version="1.0" encoding="UTF-8"?>
 //   <FrameForge version="1">
+//     <Network protocol="can">                      (can, canfd, uart or udp)
+//       <Can bitrate="500000" samplePoint="87.5"/>  (only the active protocol's settings)
+//     </Network>
 //     <Nodes>
 //       <Node name="EngineECU">
 //         <Comment>Engine control unit</Comment>
@@ -21,7 +24,7 @@ class Database;
 //       </Signal>
 //     </Signals>
 //     <Messages>
-//       <Message name="EngineData" type="can-standard" frameId="0x100" length="8"
+//       <Message name="EngineData" idFormat="standard" frameId="0x100" length="8"
 //                txMethod="cyclic" cycleTime="100" transmitter="EngineECU">
 //         <Receiver name="Dashboard"/>
 //         <SignalRef name="EngineSpeed" startBit="7"/>

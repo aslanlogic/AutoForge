@@ -15,6 +15,7 @@ SOURCES += \
     messagetablemodel.cpp \
     navigationfiltermodel.cpp \
     navigationmodel.cpp \
+    networkdialog.cpp \
     networkpropertieswidget.cpp \
     nodedialog.cpp \
     nodepropertieswidget.cpp \
@@ -34,6 +35,8 @@ HEADERS += \
     messagetablemodel.h \
     navigationfiltermodel.h \
     navigationmodel.h \
+    network.h \
+    networkdialog.h \
     networkpropertieswidget.h \
     node.h \
     nodedialog.h \

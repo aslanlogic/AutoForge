@@ -39,9 +39,10 @@ bool textToFrameId(const QString &text, quint32 *frameId)
 
 MessageDialog::MessageDialog(const Message &message, const QStringList &existingNames,
                              const QVector<Signal> &allSignals, const QVector<Node> &allNodes,
-                             QWidget *parent)
+                             const Network &network, QWidget *parent)
     : QDialog(parent)
     , m_message(message)
+    , m_network(network)
     , m_existingNames(existingNames)
     , m_nodes(allNodes)
     , m_mappings(message.signalMappings)
@@ -70,10 +71,8 @@ MessageDialog::MessageDialog(const Message &message, const QStringList &existing
     layout->addWidget(buttons);
 
     // Combo box item order matches the enum order in Message.
-    // Type goes before length: changing the type changes the allowed length range.
     m_nameEdit->setText(message.name);
-    m_typeCombo->setCurrentIndex(static_cast<int>(message.type));
-    onTypeChanged();
+    m_idFormatCombo->setCurrentIndex(static_cast<int>(message.idFormat));
     m_frameIdEdit->setText(frameIdToText(message.frameId));
     m_lengthSpin->setValue(message.length);
     m_txMethodCombo->setCurrentIndex(static_cast<int>(message.txMethod));
@@ -94,7 +93,7 @@ Message MessageDialog::message() const
     // Start from the message we were given, so fields the dialog does not show (like id) are kept.
     Message message = m_message;
     message.name = m_nameEdit->text().trimmed();
-    message.type = currentType();
+    message.idFormat = currentIdFormat();
     textToFrameId(m_frameIdEdit->text(), &message.frameId);
     message.length = m_lengthSpin->value();
     message.txMethod = currentTxMethod();
@@ -114,7 +113,7 @@ Message MessageDialog::message() const
 void MessageDialog::accept()
 {
     const QString name = m_nameEdit->text().trimmed();
-    const Message::Type type = currentType();
+    const quint32 largestId = maxFrameId(m_network, currentIdFormat());
     quint32 frameId = 0;
 
     QString error;
@@ -125,12 +124,12 @@ void MessageDialog::accept()
     } else if (m_existingNames.contains(name)) {
         error = QString("A message named '%1' already exists.").arg(name);
         badField = m_nameEdit;
-    } else if (!textToFrameId(m_frameIdEdit->text(), &frameId) || frameId > maxFrameId(type)) {
-        error = QString("The ID must be a number from 0x0 to %1 for %2.\n"
+    } else if (!textToFrameId(m_frameIdEdit->text(), &frameId) || frameId > largestId) {
+        error = QString("The ID must be a number from 0x0 to %1 on this %2 network.\n"
                         "Write hex with 0x in front (0x1A) or plain decimal (26).")
-                    .arg(frameIdToText(maxFrameId(type)), toString(type));
+                    .arg(frameIdToText(largestId), toString(m_network.protocol));
         badField = m_frameIdEdit;
-    } else if (!isValidLength(type, m_lengthSpin->value())) {
+    } else if (!isValidLength(m_network.protocol, m_lengthSpin->value())) {
         error = "CAN FD only allows 0-8, 12, 16, 20, 24, 32, 48 or 64 bytes.";
         badField = m_lengthSpin;
     }
@@ -171,18 +170,19 @@ QWidget *MessageDialog::createDefinitionTab()
 
     m_nameEdit = new QLineEdit;
 
-    m_typeCombo = new QComboBox;
-    for (auto type : {Message::Type::CanStandard, Message::Type::CanExtended,
-                      Message::Type::CanFdStandard, Message::Type::CanFdExtended,
-                      Message::Type::Uart, Message::Type::Udp})
-        m_typeCombo->addItem(toString(type));
-    connect(m_typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MessageDialog::onTypeChanged);
+    // The protocol is the network's; only CAN and CAN FD have an ID format to choose.
+    const bool can = isCan(m_network.protocol);
+    m_idFormatCombo = new QComboBox;
+    for (auto idFormat : {Message::IdFormat::Standard, Message::IdFormat::Extended})
+        m_idFormatCombo->addItem(toString(idFormat));
+    m_idFormatCombo->setEnabled(can);
 
     m_frameIdEdit = new QLineEdit;
 
-    m_lengthLabel = new QLabel;
+    // CAN calls the payload length "DLC".
+    m_lengthLabel = new QLabel(can ? "DLC:" : "Length [Byte]:");
     m_lengthSpin = new QSpinBox;
+    m_lengthSpin->setRange(0, maxLength(m_network.protocol));
 
     // Item data is the Node::id; 0 means no transmitter.
     m_transmitterCombo = new QComboBox;
@@ -204,8 +204,10 @@ QWidget *MessageDialog::createDefinitionTab()
     auto *grid = new QGridLayout;
     grid->addWidget(new QLabel("Name:"), 0, 0);
     grid->addWidget(m_nameEdit, 0, 1, 1, 3);
-    grid->addWidget(new QLabel("Type:"), 1, 0);
-    grid->addWidget(m_typeCombo, 1, 1, 1, 3);
+    grid->addWidget(new QLabel("Protocol:"), 1, 0);
+    grid->addWidget(new QLabel(toString(m_network.protocol) + "  (set in Network)"), 1, 1);
+    grid->addWidget(new QLabel("ID format:"), 1, 2);
+    grid->addWidget(m_idFormatCombo, 1, 3);
     grid->addWidget(new QLabel("ID:"), 2, 0);
     grid->addWidget(m_frameIdEdit, 2, 1);
     grid->addWidget(m_lengthLabel, 2, 2);
@@ -303,24 +305,14 @@ QWidget *MessageDialog::createCommentTab()
     return tab;
 }
 
-Message::Type MessageDialog::currentType() const
+Message::IdFormat MessageDialog::currentIdFormat() const
 {
-    return static_cast<Message::Type>(m_typeCombo->currentIndex());
+    return static_cast<Message::IdFormat>(m_idFormatCombo->currentIndex());
 }
 
 Message::TxMethod MessageDialog::currentTxMethod() const
 {
     return static_cast<Message::TxMethod>(m_txMethodCombo->currentIndex());
-}
-
-void MessageDialog::onTypeChanged()
-{
-    const Message::Type type = currentType();
-
-    // CAN calls the payload length "DLC".
-    m_lengthLabel->setText(isCan(type) ? "DLC:" : "Length [Byte]:");
-    // setRange() also lowers the current value if it is now too large.
-    m_lengthSpin->setRange(0, maxLength(type));
 }
 
 void MessageDialog::onTxMethodChanged()

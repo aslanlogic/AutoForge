@@ -5,6 +5,7 @@
 #include "messagetablemodel.h"
 #include "navigationfiltermodel.h"
 #include "navigationmodel.h"
+#include "networkdialog.h"
 #include "networkpropertieswidget.h"
 #include "nodedialog.h"
 #include "nodepropertieswidget.h"
@@ -53,6 +54,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::nodeAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::nodeChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::nodeRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::networkChanged, this, [this] { setWindowModified(true); });
 }
 
 void MainWindow::setupMenus()
@@ -144,6 +146,7 @@ void MainWindow::setupLayout()
     connect(m_database, &Database::nodeAdded, this, &MainWindow::refreshRightPane);
     connect(m_database, &Database::nodeChanged, this, &MainWindow::refreshRightPane);
     connect(m_database, &Database::nodeRemoved, this, &MainWindow::refreshRightPane);
+    connect(m_database, &Database::networkChanged, this, &MainWindow::refreshRightPane);
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
         showView(View::Empty);
@@ -204,10 +207,12 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
     const QIcon newIcon = QIcon::fromTheme("document-new", style()->standardIcon(QStyle::SP_FileIcon));
     const QIcon deleteIcon = QIcon::fromTheme("edit-delete", style()->standardIcon(QStyle::SP_TrashIcon));
 
-    // Headings offer "New", the items directly under them offer "Delete".
+    // Headings offer "New" ("Edit..." for Network), the items directly under them offer "Delete".
     QMenu menu(this);
     if (kind == NavigationModel::Heading) {
-        if (index.row() == NavigationModel::Signals)
+        if (index.row() == NavigationModel::Network)
+            menu.addAction(QIcon::fromTheme("document-properties"), "Edit...", this, &MainWindow::editNetwork);
+        else if (index.row() == NavigationModel::Signals)
             menu.addAction(newIcon, "New", this, &MainWindow::createNewSignal);
         else if (index.row() == NavigationModel::Messages)
             menu.addAction(newIcon, "New", this, &MainWindow::createNewMessage);
@@ -249,6 +254,10 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &filterIndex)
     const QModelIndex index = m_navigationFilter->mapToSource(filterIndex);
     const int id = index.data(NavigationModel::ObjectIdRole).toInt();
     switch (index.data(NavigationModel::ItemKindRole).toInt()) {
+    case NavigationModel::Heading:
+        if (index.row() == NavigationModel::Network)
+            editNetwork();
+        break;
     case NavigationModel::SignalItem:
         editSignal(id);
         break;
@@ -292,7 +301,8 @@ void MainWindow::createNewMessage()
         newMessage.name = QString("New_Message_%1").arg(number++);
     } while (existingNames.contains(newMessage.name));
 
-    MessageDialog dialog(newMessage, existingNames, m_database->allSignals(), m_database->allNodes(), this);
+    MessageDialog dialog(newMessage, existingNames, m_database->allSignals(), m_database->allNodes(),
+                         m_database->network(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -309,7 +319,8 @@ void MainWindow::editMessage(int id)
     QStringList otherNames = m_database->messageNames();
     otherNames.removeOne(message.name);
 
-    MessageDialog dialog(message, otherNames, m_database->allSignals(), m_database->allNodes(), this);
+    MessageDialog dialog(message, otherNames, m_database->allSignals(), m_database->allNodes(),
+                         m_database->network(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -411,6 +422,13 @@ void MainWindow::deleteNode(int id)
     if (QMessageBox::question(this, "Delete Network Node", question,
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
         m_database->removeNode(id);
+}
+
+void MainWindow::editNetwork()
+{
+    NetworkDialog dialog(m_database->network(), m_database->allMessages(), this);
+    if (dialog.exec() == QDialog::Accepted)
+        m_database->setNetwork(dialog.network());
 }
 
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)

@@ -6,7 +6,8 @@
 class Database;
 class QTableWidget;
 
-// Read-only overview of the whole document, shown when "Network" is clicked.
+// Read-only overview of the whole document, shown when "Network" is clicked:
+// how many nodes, messages and signals there are, the protocol and its settings.
 class NetworkPropertiesWidget : public QWidget
 {
     Q_OBJECT

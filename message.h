@@ -1,6 +1,7 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
+#include "network.h"
 #include "signal.h"
 
 #include <QHash>
@@ -17,16 +18,18 @@ struct SignalMapping
 };
 
 // Definition of one message (frame) on a network: how it is identified on the
-// bus, how long its payload is and how often it is sent.
+// bus, how long its payload is and how often it is sent. A message has no
+// protocol of its own: it uses the network's (see Network::protocol), which
+// decides the valid range of frameId and length (see the functions below).
 struct Message
 {
-    // The protocol decides the valid range of frameId and length (see below).
-    enum class Type { CanStandard, CanExtended, CanFdStandard, CanFdExtended, Uart, Udp };
+    // CAN and CAN FD only: an 11-bit (Standard) or 29-bit (Extended) ID.
+    enum class IdFormat { Standard, Extended };
     enum class TxMethod { Cyclic, OnEvent, CyclicAndOnEvent };
 
     int id = 0; // unique, assigned by Database when added; 0 = not added yet
     QString name;
-    Type type = Type::CanStandard;
+    IdFormat idFormat = IdFormat::Standard; // ignored on UART and UDP networks
     quint32 frameId = 0; // the identifier on the bus, e.g. the CAN ID
     int length = 8;      // payload length in bytes (the DLC for CAN)
     TxMethod txMethod = TxMethod::Cyclic;
@@ -38,15 +41,11 @@ struct Message
 };
 
 // Display names, in the same wording as the Message dialog's combo boxes.
-inline QString toString(Message::Type type)
+inline QString toString(Message::IdFormat idFormat)
 {
-    switch (type) {
-    case Message::Type::CanStandard:   return "CAN Standard";
-    case Message::Type::CanExtended:   return "CAN Extended";
-    case Message::Type::CanFdStandard: return "CAN FD Standard";
-    case Message::Type::CanFdExtended: return "CAN FD Extended";
-    case Message::Type::Uart:          return "UART";
-    case Message::Type::Udp:           return "UDP";
+    switch (idFormat) {
+    case Message::IdFormat::Standard: return "Standard (11 bit)";
+    case Message::IdFormat::Extended: return "Extended (29 bit)";
     }
     return QString();
 }
@@ -67,10 +66,10 @@ inline QString frameIdToText(quint32 frameId)
     return "0x" + QString::number(frameId, 16).toUpper();
 }
 
-inline bool isCan(Message::Type type)
+// CAN and CAN FD: messages have an ID format and a DLC.
+inline bool isCan(Network::Protocol protocol)
 {
-    return type == Message::Type::CanStandard || type == Message::Type::CanExtended
-        || type == Message::Type::CanFdStandard || type == Message::Type::CanFdExtended;
+    return protocol == Network::Protocol::Can || protocol == Network::Protocol::CanFd;
 }
 
 inline bool isCyclic(Message::TxMethod txMethod)
@@ -78,44 +77,57 @@ inline bool isCyclic(Message::TxMethod txMethod)
     return txMethod != Message::TxMethod::OnEvent;
 }
 
-// Largest allowed frameId: 11-bit or 29-bit for CAN, any 32-bit number otherwise.
-inline quint32 maxFrameId(Message::Type type)
+// Largest allowed frameId on this network: 11 or 29 bits for CAN and CAN FD;
+// for UART and UDP whatever fits in the network's ID size (1 byte: 0xFF, ...).
+inline quint32 maxFrameId(const Network &network, Message::IdFormat idFormat)
 {
-    switch (type) {
-    case Message::Type::CanStandard:
-    case Message::Type::CanFdStandard: return 0x7FF;
-    case Message::Type::CanExtended:
-    case Message::Type::CanFdExtended: return 0x1FFFFFFF;
-    case Message::Type::Uart:
-    case Message::Type::Udp:           return 0xFFFFFFFF;
+    auto largestFor = [](int bytes) { return bytes >= 4 ? 0xFFFFFFFFu : (1u << (8 * bytes)) - 1; };
+    switch (network.protocol) {
+    case Network::Protocol::Can:
+    case Network::Protocol::CanFd: return idFormat == Message::IdFormat::Extended ? 0x1FFFFFFF : 0x7FF;
+    case Network::Protocol::Uart:  return largestFor(network.uart.idSize);
+    case Network::Protocol::Udp:   return largestFor(network.udp.idSize);
     }
     return 0;
 }
 
 // Largest payload in bytes. UDP: the most one datagram can carry.
-inline int maxLength(Message::Type type)
+inline int maxLength(Network::Protocol protocol)
 {
-    switch (type) {
-    case Message::Type::CanStandard:
-    case Message::Type::CanExtended:   return 8;
-    case Message::Type::CanFdStandard:
-    case Message::Type::CanFdExtended: return 64;
-    case Message::Type::Uart:          return 65535;
-    case Message::Type::Udp:           return 65507;
+    switch (protocol) {
+    case Network::Protocol::Can:   return 8;
+    case Network::Protocol::CanFd: return 64;
+    case Network::Protocol::Uart:  return 65535;
+    case Network::Protocol::Udp:   return 65507;
     }
     return 0;
 }
 
 // CAN FD only allows 0-8, 12, 16, 20, 24, 32, 48 and 64 bytes.
-inline bool isValidLength(Message::Type type, int length)
+inline bool isValidLength(Network::Protocol protocol, int length)
 {
-    if (length < 0 || length > maxLength(type))
+    if (length < 0 || length > maxLength(protocol))
         return false;
-    if (type == Message::Type::CanFdStandard || type == Message::Type::CanFdExtended) {
+    if (protocol == Network::Protocol::CanFd) {
         return length <= 8 || length == 12 || length == 16 || length == 20
             || length == 24 || length == 32 || length == 48 || length == 64;
     }
     return true;
+}
+
+// Checks a message's ID and length against the network. Returns an empty string
+// if they fit, otherwise what is wrong.
+inline QString checkMessageAgainstNetwork(const Message &message, const Network &network)
+{
+    const quint32 largestId = maxFrameId(network, message.idFormat);
+    if (message.frameId > largestId)
+        return QString("Message '%1': ID %2 is too big for %3 (at most %4).")
+            .arg(message.name, frameIdToText(message.frameId), toString(network.protocol),
+                 frameIdToText(largestId));
+    if (!isValidLength(network.protocol, message.length))
+        return QString("Message '%1': a length of %2 bytes is not possible on %3.")
+            .arg(message.name).arg(message.length).arg(toString(network.protocol));
+    return QString();
 }
 
 // Checks that every placed signal lies inside the payload and that no two signals

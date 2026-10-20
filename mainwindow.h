@@ -44,6 +44,7 @@ private slots:
     void createNewNode();
     void editNode(int id);
     void deleteNode(int id);    // asks first
+    void editNetwork();
     void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
     void openFile();
     bool saveFile();

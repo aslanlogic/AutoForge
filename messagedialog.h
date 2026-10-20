@@ -27,9 +27,10 @@ public:
     // existingNames: names already taken by other messages; OK is refused for these.
     // allSignals: the signals that can be placed in the message.
     // allNodes: the nodes that can transmit or receive it.
+    // network: decides the protocol, and so the allowed IDs and lengths.
     MessageDialog(const Message &message, const QStringList &existingNames,
                   const QVector<Signal> &allSignals, const QVector<Node> &allNodes,
-                  QWidget *parent = nullptr);
+                  const Network &network, QWidget *parent = nullptr);
 
     Message message() const;
 
@@ -37,7 +38,6 @@ public slots:
     void accept() override;
 
 private slots:
-    void onTypeChanged();
     void onTxMethodChanged();
     void addSignal();
     void removeSignal();
@@ -51,10 +51,11 @@ private:
     QWidget *createCommentTab();
     void refreshSignals(); // redraws the Signals and Layout tabs from m_mappings
     int findFreeStartBit(const Signal &signal) const; // -1 if it does not fit anywhere
-    Message::Type currentType() const;
+    Message::IdFormat currentIdFormat() const;
     Message::TxMethod currentTxMethod() const;
 
     Message m_message; // the message as it was when the dialog opened
+    Network m_network;
     QStringList m_existingNames;
     QHash<int, Signal> m_signalsById;
     QVector<Node> m_nodes; // sorted by name, for the transmitter box and receiver list
@@ -63,7 +64,7 @@ private:
 
     // Definition tab
     QLineEdit *m_nameEdit = nullptr;
-    QComboBox *m_typeCombo = nullptr;
+    QComboBox *m_idFormatCombo = nullptr;
     QLineEdit *m_frameIdEdit = nullptr;
     QLabel *m_lengthLabel = nullptr;
     QSpinBox *m_lengthSpin = nullptr;

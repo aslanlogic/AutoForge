@@ -7,6 +7,17 @@ Database::Database(QObject *parent)
 {
 }
 
+const Network &Database::network() const
+{
+    return m_network;
+}
+
+void Database::setNetwork(const Network &network)
+{
+    m_network = network;
+    emit networkChanged();
+}
+
 const QVector<Signal> &Database::allSignals() const
 {
     return m_signals;
@@ -221,7 +232,8 @@ QVector<int> Database::messagesReceivedBy(int nodeId) const
     return ids;
 }
 
-void Database::replaceAll(QVector<Signal> newSignals, QVector<Message> newMessages, QVector<Node> newNodes)
+void Database::replaceAll(const Network &newNetwork, QVector<Signal> newSignals, QVector<Message> newMessages,
+                          QVector<Node> newNodes)
 {
     emit aboutToBeReset();
     m_nextId = 1;
@@ -254,6 +266,7 @@ void Database::replaceAll(QVector<Signal> newSignals, QVector<Message> newMessag
         }
         message.receiverIds = receiverIds;
     }
+    m_network = newNetwork;
     m_signals = newSignals;
     m_messages = newMessages;
     m_nodes = newNodes;

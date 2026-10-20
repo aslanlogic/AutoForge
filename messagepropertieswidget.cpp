@@ -52,7 +52,8 @@ MessagePropertiesWidget::MessagePropertiesWidget(QWidget *parent)
 
 void MessagePropertiesWidget::showMessage(const Message &message, const Database &database)
 {
-    const QString lengthName = isCan(message.type) ? "DLC" : "Length [Byte]";
+    const Network &network = database.network();
+    const QString lengthName = isCan(network.protocol) ? "DLC" : "Length [Byte]";
     const QString cycleTime = isCyclic(message.txMethod) ? QString("%1 ms").arg(message.cycleTime) : QString();
     const Node *transmitter = database.findNode(message.transmitterId);
     QStringList receivers;
@@ -61,9 +62,13 @@ void MessagePropertiesWidget::showMessage(const Message &message, const Database
             receivers << receiver->name;
     }
 
+    // The ID format only means something on CAN and CAN FD.
+    const QString idFormat = isCan(network.protocol) ? toString(message.idFormat) : QString("-");
+
     setPropertyRows(m_propertiesTable, {
         {"Name", message.name},
-        {"Type", toString(message.type)},
+        {"Protocol", toString(network.protocol)},
+        {"ID format", idFormat},
         {"ID", frameIdToText(message.frameId)},
         {lengthName, QString::number(message.length)},
         {"Transmitter", transmitter ? transmitter->name : QString()},

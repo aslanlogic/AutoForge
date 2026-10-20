@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FrameForge version="1">
+    <Network protocol="uart">
+        <Uart baudRate="115200" dataBits="8" parity="none" stopBits="1" flowControl="none" startBytes="AA 55" idSize="2" checksum="none"/>
+    </Network>
     <Nodes>
         <Node name="RcCar"/>
         <Node name="Pc"/>

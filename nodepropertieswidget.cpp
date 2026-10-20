@@ -7,15 +7,14 @@
 
 namespace {
 
-const QStringList MessageColumns = {"Name", "ID", "Type", "Length [Byte]"};
+const QStringList MessageColumns = {"Name", "ID", "Length [Byte]"};
 
 QVector<QStringList> messageRows(const QVector<int> &messageIds, const Database &database)
 {
     QVector<QStringList> rows;
     for (int id : messageIds) {
         if (const Message *message = database.findMessage(id)) {
-            rows.append({message->name, frameIdToText(message->frameId),
-                         toString(message->type), QString::number(message->length)});
+            rows.append({message->name, frameIdToText(message->frameId), QString::number(message->length)});
         }
     }
     return rows;

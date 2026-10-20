@@ -13,7 +13,7 @@ class MessageTableModel : public QAbstractTableModel
 
 public:
     enum Column {
-        Name, Type, FrameId, Length, Transmitter, Receivers, TxMethod, CycleTime, SignalCount, Comment,
+        Name, IdFormat, FrameId, Length, Transmitter, Receivers, TxMethod, CycleTime, SignalCount, Comment,
         ColumnCount
     };
 
