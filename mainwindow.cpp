@@ -503,7 +503,9 @@ void MainWindow::refreshRightPane()
 }
 
 namespace {
-const QString FileFilter = "FrameForge XML (*.xml);;All files (*)";
+// FrameForge files are XML inside, but get their own extension.
+const QString FileExtension = "ffxml";
+const QString FileFilter = "FrameForge files (*.ffxml);;All files (*)";
 }
 
 void MainWindow::openFile()
@@ -536,8 +538,10 @@ bool MainWindow::saveFileAs()
     QString filePath = QFileDialog::getSaveFileName(this, "Save As", m_currentFilePath, FileFilter);
     if (filePath.isEmpty())
         return false;
-    if (QFileInfo(filePath).suffix().isEmpty())
-        filePath += ".xml";
+    // Always save with our extension: "engine" and "engine.txt" become
+    // "engine.ffxml" and "engine.txt.ffxml".
+    if (QFileInfo(filePath).suffix().compare(FileExtension, Qt::CaseInsensitive) != 0)
+        filePath += "." + FileExtension;
 
     return saveTo(filePath);
 }

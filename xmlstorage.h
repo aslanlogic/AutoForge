@@ -5,7 +5,7 @@
 
 class Database;
 
-// Reads and writes a Database as a FrameForge XML file:
+// Reads and writes a Database as a FrameForge file (extension .ffxml), which is XML:
 //
 //   <?xml version="1.0" encoding="UTF-8"?>
 //   <FrameForge version="1">
