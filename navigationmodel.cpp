@@ -265,7 +265,7 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     } else if (tagOf(index.internalId()) == FolderTag) {
         const bool tx = (index.row() == 0);
         name = tx ? "Tx Messages" : "Rx Messages";
-        icon = ":/icons/messages.svg";
+        icon = tx ? ":/icons/tx.svg" : ":/icons/rx.svg";
         kind = tx ? NodeTxFolder : NodeRxFolder;
         id = nodeIdOf(index.internalId());
     } else {
@@ -274,7 +274,7 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         id = (tx ? m_txMessages : m_rxMessages).value(nodeId).value(index.row());
         const Message *message = m_database->findMessage(id);
         name = message ? message->name : QString();
-        icon = ":/icons/messages.svg";
+        icon = ":/icons/messages.svg"; // the same as everywhere else; the folder shows Tx or Rx
         kind = tx ? NodeTxMessage : NodeRxMessage;
     }
 

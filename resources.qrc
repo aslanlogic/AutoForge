@@ -3,6 +3,8 @@
         <file>icons/messages.svg</file>
         <file>icons/network.svg</file>
         <file>icons/nodes.svg</file>
+        <file>icons/rx.svg</file>
         <file>icons/signals.svg</file>
+        <file>icons/tx.svg</file>
     </qresource>
 </RCC>
