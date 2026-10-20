@@ -4,7 +4,9 @@
 #include <QMainWindow>
 
 class Database;
+class NavigationFilterModel;
 class NavigationModel;
+class QLineEdit;
 class QSortFilterProxyModel;
 class QSplitter;
 class QStackedWidget;
@@ -27,9 +29,10 @@ protected:
 private slots:
     void showNavigationContextMenu(const QPoint &pos);
     void createNewSignal();
-    void onNavigationDoubleClicked(const QModelIndex &index);
+    // Indexes from the tree belong to m_navigationFilter, hence the "filter" prefix.
+    void onNavigationDoubleClicked(const QModelIndex &filterIndex);
     void editSignal(int id);
-    void onCurrentNavigationChanged(const QModelIndex &current);
+    void onCurrentNavigationChanged(const QModelIndex &filterCurrent);
     void onSignalChanged(int id);
     void openFile();
     bool saveFile();
@@ -49,10 +52,12 @@ private:
     Database *m_database = nullptr;
     QString m_currentFilePath; // empty until the document is saved or opened
     NavigationModel *m_navigationModel = nullptr;
+    NavigationFilterModel *m_navigationFilter = nullptr; // applies the search text
     SignalTableModel *m_signalTableModel = nullptr;
     QSortFilterProxyModel *m_signalSortModel = nullptr; // sorts the table without touching Database
 
     QSplitter *m_splitter = nullptr;
+    QLineEdit *m_searchEdit = nullptr;
     QTreeView *m_navigationTree = nullptr;
 
     // Right pane: shows one page at a time.

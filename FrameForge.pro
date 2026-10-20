@@ -9,6 +9,7 @@ SOURCES += \
     database.cpp \
     main.cpp \
     mainwindow.cpp \
+    navigationfiltermodel.cpp \
     navigationmodel.cpp \
     signaldialog.cpp \
     signalpropertieswidget.cpp \
@@ -18,9 +19,13 @@ SOURCES += \
 HEADERS += \
     database.h \
     mainwindow.h \
+    navigationfiltermodel.h \
     navigationmodel.h \
     signal.h \
     signaldialog.h \
     signalpropertieswidget.h \
     signaltablemodel.h \
     xmlstorage.h
+
+RESOURCES += \
+    resources.qrc

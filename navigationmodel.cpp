@@ -1,6 +1,8 @@
 #include "navigationmodel.h"
 #include "database.h"
 
+#include <QIcon>
+
 // How rows are identified: a heading's index has internalId 0; an item's
 // index has internalId = (its heading's Category + 1). That is enough to
 // find the parent of any index without extra bookkeeping.
@@ -73,11 +75,19 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         return QVariant();
 
     if (index.internalId() == 0) {
-        if (role != Qt::DisplayRole)
-            return QVariant();
-        static const char *const headings[CategoryCount] = {
-            "Network", "Network Nodes", "Messages", "Signals"};
-        return QString(headings[index.row()]);
+        if (role == Qt::DisplayRole) {
+            static const char *const headings[CategoryCount] = {
+                "Network", "Network Nodes", "Messages", "Signals"};
+            return QString(headings[index.row()]);
+        }
+        if (role == Qt::DecorationRole) {
+            // Icons are compiled into the program from resources.qrc.
+            static const char *const icons[CategoryCount] = {
+                ":/icons/network.svg", ":/icons/nodes.svg",
+                ":/icons/messages.svg", ":/icons/signals.svg"};
+            return QIcon(icons[index.row()]);
+        }
+        return QVariant();
     }
 
     if (index.internalId() - 1 == Signals) {

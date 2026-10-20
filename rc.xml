@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FrameForge version="1">
+    <Signals>
+        <Signal name="RcCarSwVersionPatch" length="8" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="255"/>
+        <Signal name="RcCarSwVersionMinor" length="8" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="255"/>
+        <Signal name="RcCarSwVersionMajor" length="8" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="255"/>
+    </Signals>
+</FrameForge>

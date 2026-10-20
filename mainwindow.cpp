@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "database.h"
+#include "navigationfiltermodel.h"
 #include "navigationmodel.h"
 #include "signaldialog.h"
 #include "signalpropertieswidget.h"
@@ -11,6 +12,7 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QIcon>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -20,6 +22,7 @@
 #include <QStyle>
 #include <QTableView>
 #include <QTreeView>
+#include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -55,13 +58,34 @@ void MainWindow::setupLayout()
 {
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
-    // Left pane: QTreeView scrolls on its own when content overflows.
-    m_navigationTree = new QTreeView(m_splitter);
+    // Left pane: search box above the tree.
+    auto *leftPane = new QWidget(m_splitter);
+    m_searchEdit = new QLineEdit;
+    m_searchEdit->setPlaceholderText("Search...");
+    m_searchEdit->setClearButtonEnabled(true);
+
+    // QTreeView scrolls on its own when content overflows.
+    m_navigationFilter = new NavigationFilterModel(this);
+    m_navigationFilter->setSourceModel(m_navigationModel);
+    m_navigationFilter->sort(0); // stays sorted as signals are added or renamed
+    m_navigationTree = new QTreeView;
     m_navigationTree->setHeaderHidden(true);
-    m_navigationTree->setModel(m_navigationModel);
+    m_navigationTree->setModel(m_navigationFilter);
+
+    auto *leftLayout = new QVBoxLayout(leftPane);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->addWidget(m_searchEdit);
+    leftLayout->addWidget(m_navigationTree);
+
+    connect(m_searchEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_navigationFilter->setFilterFixedString(text);
+        // Open every heading so the matches are visible.
+        if (!text.isEmpty())
+            m_navigationTree->expandAll();
+    });
 
     // Show newly added items by expanding their heading.
-    connect(m_navigationModel, &NavigationModel::rowsInserted,
+    connect(m_navigationFilter, &NavigationFilterModel::rowsInserted,
             m_navigationTree, &QTreeView::expand);
 
     m_navigationTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -83,10 +107,11 @@ void MainWindow::setupLayout()
     // After a file is opened nothing is selected any more: clear the right pane and show the signals.
     connect(m_database, &Database::wasReset, this, [this] {
         showSignalProperties(0);
-        m_navigationTree->expand(m_navigationModel->categoryIndex(NavigationModel::Signals));
+        m_navigationTree->expand(
+            m_navigationFilter->mapFromSource(m_navigationModel->categoryIndex(NavigationModel::Signals)));
     });
 
-    m_splitter->addWidget(m_navigationTree);
+    m_splitter->addWidget(leftPane);
     m_splitter->addWidget(m_rightPane);
     m_splitter->setChildrenCollapsible(false);
 
@@ -123,7 +148,7 @@ QWidget *MainWindow::createSignalTable()
 
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
 {
-    const QModelIndex index = m_navigationTree->indexAt(pos);
+    const QModelIndex index = m_navigationFilter->mapToSource(m_navigationTree->indexAt(pos));
     if (index != m_navigationModel->categoryIndex(NavigationModel::Signals))
         return;
 
@@ -153,8 +178,9 @@ void MainWindow::createNewSignal()
     m_database->addSignal(dialog.signal());
 }
 
-void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
+void MainWindow::onNavigationDoubleClicked(const QModelIndex &filterIndex)
 {
+    const QModelIndex index = m_navigationFilter->mapToSource(filterIndex);
     if (index.parent() == m_navigationModel->categoryIndex(NavigationModel::Signals))
         editSignal(index.data(NavigationModel::ObjectIdRole).toInt());
 }
@@ -177,8 +203,9 @@ void MainWindow::editSignal(int id)
     m_database->updateSignal(dialog.signal());
 }
 
-void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
+void MainWindow::onCurrentNavigationChanged(const QModelIndex &filterCurrent)
 {
+    const QModelIndex current = m_navigationFilter->mapToSource(filterCurrent);
     const QModelIndex signalsHeading = m_navigationModel->categoryIndex(NavigationModel::Signals);
 
     if (current == signalsHeading) {

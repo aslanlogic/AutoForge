@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/messages.svg</file>
+        <file>icons/network.svg</file>
+        <file>icons/nodes.svg</file>
+        <file>icons/signals.svg</file>
+    </qresource>
+</RCC>
