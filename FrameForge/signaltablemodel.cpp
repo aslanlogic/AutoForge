@@ -3,6 +3,8 @@
 
 #include <QLocale>
 
+using namespace ff;
+
 SignalTableModel::SignalTableModel(Database *database, QObject *parent)
     : QAbstractTableModel(parent)
     , m_database(database)

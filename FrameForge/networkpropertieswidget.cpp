@@ -5,6 +5,8 @@
 #include <QLocale>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 namespace {
 
 QString number(double value)

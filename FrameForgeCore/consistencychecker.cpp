@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+namespace ff {
+
 namespace ConsistencyChecker {
 
 namespace {
@@ -167,3 +169,5 @@ QVector<Issue> check(const Database &database)
 }
 
 } // namespace ConsistencyChecker
+
+} // namespace ff

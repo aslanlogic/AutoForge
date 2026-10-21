@@ -37,6 +37,8 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {

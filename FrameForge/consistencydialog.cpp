@@ -9,6 +9,8 @@
 
 #include <algorithm>
 
+using namespace ff;
+
 using ConsistencyChecker::Issue;
 
 ConsistencyDialog::ConsistencyDialog(const QVector<Issue> &issues, QWidget *parent)

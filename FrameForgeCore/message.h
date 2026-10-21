@@ -9,6 +9,8 @@
 #include <QVector>
 #include <QtGlobal>
 
+namespace ff {
+
 // Places one signal inside a message. The same signal may be placed in
 // several messages; the Signal itself does not know where it is used.
 struct SignalMapping
@@ -148,5 +150,7 @@ inline QString checkSignalLayout(int lengthInBytes, const QVector<SignalMapping>
     }
     return QString();
 }
+
+} // namespace ff
 
 #endif // MESSAGE_H

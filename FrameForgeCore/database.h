@@ -11,6 +11,8 @@
 #include <QStringList>
 #include <QVector>
 
+namespace ff {
+
 // Owns all data of one FrameForge document. It knows nothing about widgets;
 // views find out about changes through its Qt signals.
 class Database : public QObject
@@ -122,5 +124,7 @@ private:
     QVector<ValueTable> m_valueTables;
     int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };
+
+} // namespace ff
 
 #endif // DATABASE_H

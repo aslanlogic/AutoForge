@@ -7,6 +7,8 @@
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 NodeDialog::NodeDialog(const Node &node, const QStringList &existingNames, QWidget *parent)
     : QDialog(parent)
     , m_node(node)

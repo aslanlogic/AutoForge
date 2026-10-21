@@ -5,6 +5,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 ValueTablePropertiesWidget::ValueTablePropertiesWidget(QWidget *parent)
     : QWidget(parent)
 {

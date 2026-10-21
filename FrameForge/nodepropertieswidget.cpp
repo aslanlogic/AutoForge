@@ -5,6 +5,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 namespace {
 
 const QStringList MessageColumns = {"Name", "ID", "Length [Byte]"};

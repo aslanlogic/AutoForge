@@ -1,6 +1,8 @@
 #include "messagetablemodel.h"
 #include "FrameForgeCore/database.h"
 
+using namespace ff;
+
 MessageTableModel::MessageTableModel(Database *database, QObject *parent)
     : QAbstractTableModel(parent)
     , m_database(database)

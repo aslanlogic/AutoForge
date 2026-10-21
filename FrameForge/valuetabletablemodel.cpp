@@ -1,6 +1,8 @@
 #include "valuetabletablemodel.h"
 #include "FrameForgeCore/database.h"
 
+using namespace ff;
+
 ValueTableTableModel::ValueTableTableModel(Database *database, QObject *parent)
     : QAbstractTableModel(parent)
     , m_database(database)

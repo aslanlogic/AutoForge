@@ -2,6 +2,8 @@
 
 #include <QHash>
 
+namespace ff {
+
 Database::Database(QObject *parent)
     : QObject(parent)
 {
@@ -349,3 +351,5 @@ void Database::replaceAll(const Network &newNetwork, QVector<Signal> newSignals,
     m_valueTables = newValueTables;
     emit wasReset();
 }
+
+} // namespace ff

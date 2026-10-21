@@ -20,6 +20,8 @@
 #include <cmath>
 #include <limits>
 
+using namespace ff;
+
 SignalDialog::SignalDialog(const Signal &signal, const QStringList &existingNames,
                            const QVector<ValueTable> &allValueTables, QWidget *parent)
     : QDialog(parent)

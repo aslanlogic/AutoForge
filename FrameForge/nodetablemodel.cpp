@@ -1,6 +1,8 @@
 #include "nodetablemodel.h"
 #include "FrameForgeCore/database.h"
 
+using namespace ff;
+
 NodeTableModel::NodeTableModel(Database *database, QObject *parent)
     : QAbstractTableModel(parent)
     , m_database(database)

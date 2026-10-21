@@ -15,6 +15,8 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 namespace {
 
 // A bitrate box: pick a common value or type any whole number.

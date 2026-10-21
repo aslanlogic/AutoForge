@@ -3,6 +3,8 @@
 
 #include <QString>
 
+namespace ff {
+
 class Database;
 
 // Reads and writes a Database as a FrameForge file (extension .ffxml), which is XML:
@@ -49,5 +51,7 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
 bool load(Database &database, const QString &filePath, QString *errorMessage);
 
 } // namespace XmlStorage
+
+} // namespace ff
 
 #endif // XMLSTORAGE_H

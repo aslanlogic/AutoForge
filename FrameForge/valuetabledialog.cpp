@@ -15,6 +15,8 @@
 
 #include <algorithm>
 
+using namespace ff;
+
 namespace {
 
 enum Column { ValueColumn, DescriptionColumn };

@@ -3,6 +3,8 @@
 
 #include <QString>
 
+namespace ff {
+
 // The settings each protocol needs. Only the one of the network's active
 // protocol is used (see Network below).
 
@@ -145,5 +147,7 @@ inline QString toString(UdpSettings::Mode mode)
     }
     return QString();
 }
+
+} // namespace ff
 
 #endif // NETWORK_H

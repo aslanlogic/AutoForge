@@ -6,6 +6,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 SignalPropertiesWidget::SignalPropertiesWidget(QWidget *parent)
     : QWidget(parent)
 {

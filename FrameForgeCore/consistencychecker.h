@@ -4,6 +4,8 @@
 #include <QString>
 #include <QVector>
 
+namespace ff {
+
 class Database;
 
 // Looks through a whole document for things that are wrong (errors) or that
@@ -25,5 +27,7 @@ struct Issue
 QVector<Issue> check(const Database &database);
 
 } // namespace ConsistencyChecker
+
+} // namespace ff
 
 #endif // CONSISTENCYCHECKER_H

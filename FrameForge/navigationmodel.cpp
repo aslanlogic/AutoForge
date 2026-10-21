@@ -3,6 +3,8 @@
 
 #include <QIcon>
 
+using namespace ff;
+
 // How rows are identified. Every index carries a number (internalId) that is
 // enough to find its parent without extra bookkeeping:
 //

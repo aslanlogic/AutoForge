@@ -4,6 +4,8 @@
 #include <QPainter>
 #include <QPaintEvent>
 
+using namespace ff;
+
 namespace {
 
 const int HeaderHeight = 24;    // row with the bit numbers

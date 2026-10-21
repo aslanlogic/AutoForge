@@ -9,6 +9,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+using namespace ff;
+
 MessagePropertiesWidget::MessagePropertiesWidget(QWidget *parent)
     : QWidget(parent)
 {

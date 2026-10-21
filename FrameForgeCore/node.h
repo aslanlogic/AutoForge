@@ -3,6 +3,8 @@
 
 #include <QString>
 
+namespace ff {
+
 // A network node: a device (ECU, sensor, PC, ...) on the network that sends
 // and receives messages.
 struct Node
@@ -11,5 +13,7 @@ struct Node
     QString name;
     QString comment;
 };
+
+} // namespace ff
 
 #endif // NODE_H

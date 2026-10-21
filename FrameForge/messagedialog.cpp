@@ -21,6 +21,8 @@
 
 #include <algorithm>
 
+using namespace ff;
+
 namespace {
 
 // Accepts hex with a 0x prefix ("0x1A") or plain decimal ("26").

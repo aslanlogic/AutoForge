@@ -4,6 +4,8 @@
 #include <QString>
 #include <QVector>
 
+namespace ff {
+
 // Definition of one signal: a bit range inside a frame's payload and how to
 // convert its raw value into a physical value (physical = raw * factor + offset).
 struct Signal
@@ -70,5 +72,7 @@ inline QString toString(Signal::ValueType valueType)
     }
     return QString();
 }
+
+} // namespace ff
 
 #endif // SIGNAL_H

@@ -11,6 +11,8 @@
 
 #include <algorithm>
 
+namespace ff {
+
 namespace {
 
 const QString FormatVersion = "1";
@@ -751,3 +753,5 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
 }
 
 } // namespace XmlStorage
+
+} // namespace ff
