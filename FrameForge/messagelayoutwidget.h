@@ -1,7 +1,7 @@
 #ifndef MESSAGELAYOUTWIDGET_H
 #define MESSAGELAYOUTWIDGET_H
 
-#include "message.h"
+#include "FrameForgeCore/message.h"
 
 #include <QHash>
 #include <QVector>

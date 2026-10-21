@@ -1,7 +1,7 @@
 #ifndef CONSISTENCYDIALOG_H
 #define CONSISTENCYDIALOG_H
 
-#include "consistencychecker.h"
+#include "FrameForgeCore/consistencychecker.h"
 
 #include <QDialog>
 

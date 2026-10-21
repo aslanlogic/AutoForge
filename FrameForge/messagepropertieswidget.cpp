@@ -1,5 +1,5 @@
 #include "messagepropertieswidget.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 #include "messagelayoutwidget.h"
 #include "propertytable.h"
 

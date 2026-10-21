@@ -1,8 +1,8 @@
 #ifndef NETWORKDIALOG_H
 #define NETWORKDIALOG_H
 
-#include "message.h"
-#include "network.h"
+#include "FrameForgeCore/message.h"
+#include "FrameForgeCore/network.h"
 
 #include <QDialog>
 #include <QVector>

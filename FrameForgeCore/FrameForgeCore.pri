@@ -1,8 +1,10 @@
 # Include this from a program's .pro file to use the FrameForgeCore library:
 #     include(../FrameForgeCore/FrameForgeCore.pri)
-# It makes the FrameForgeCore headers findable and links the library.
+# It links the library and makes the headers findable as
+#     #include "FrameForgeCore/database.h"
+# so headers with the same name in other libraries cannot be mixed up.
 
-INCLUDEPATH += $$PWD
+INCLUDEPATH += $$PWD/..
 DEPENDPATH += $$PWD
 
 # Where qmake puts the library depends on the platform: Windows builds have

@@ -1,5 +1,5 @@
 #include "valuetablepropertieswidget.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 #include "propertytable.h"
 
 #include <QLabel>

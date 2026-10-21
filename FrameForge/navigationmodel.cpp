@@ -1,5 +1,5 @@
 #include "navigationmodel.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 
 #include <QIcon>
 

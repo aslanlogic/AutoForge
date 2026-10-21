@@ -1,5 +1,5 @@
 #include "signaltablemodel.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 
 #include <QLocale>
 

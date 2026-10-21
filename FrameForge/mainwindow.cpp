@@ -1,7 +1,8 @@
 #include "mainwindow.h"
-#include "consistencychecker.h"
+#include "FrameForgeCore/consistencychecker.h"
+#include "FrameForgeCore/database.h"
+#include "FrameForgeCore/xmlstorage.h"
 #include "consistencydialog.h"
-#include "database.h"
 #include "messagedialog.h"
 #include "messagepropertieswidget.h"
 #include "messagetablemodel.h"
@@ -18,7 +19,6 @@
 #include "valuetabledialog.h"
 #include "valuetablepropertieswidget.h"
 #include "valuetabletablemodel.h"
-#include "xmlstorage.h"
 
 #include <QCloseEvent>
 #include <QFileDialog>

@@ -1,5 +1,5 @@
 #include "valuetabletablemodel.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 
 ValueTableTableModel::ValueTableTableModel(Database *database, QObject *parent)
     : QAbstractTableModel(parent)

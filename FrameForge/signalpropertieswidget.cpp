@@ -1,5 +1,5 @@
 #include "signalpropertieswidget.h"
-#include "database.h"
+#include "FrameForgeCore/database.h"
 
 #include <QHeaderView>
 #include <QLocale>
