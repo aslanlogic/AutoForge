@@ -15,6 +15,8 @@ class QSpinBox;
 class QTabWidget;
 class QWidget;
 
+using namespace ff;
+
 // Edits the network: a "Protocol" box chooses the one active protocol, and
 // only that protocol's tab (CAN, CAN FD, UART or UDP) can be edited.
 // OK is refused if an existing message would not fit the new settings

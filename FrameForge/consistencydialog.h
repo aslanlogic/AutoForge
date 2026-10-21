@@ -8,6 +8,8 @@
 class QLabel;
 class QTableWidget;
 
+using namespace ff;
+
 // Shows the result of a consistency check: a summary line and one row per
 // error or warning. The rows can be sorted by clicking a column header.
 class ConsistencyDialog : public QDialog

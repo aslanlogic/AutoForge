@@ -15,6 +15,8 @@ class QTableWidget;
 class QTabWidget;
 class QWidget;
 
+using namespace ff;
+
 class SignalDialog : public QDialog
 {
     Q_OBJECT

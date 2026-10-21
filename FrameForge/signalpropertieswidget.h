@@ -3,9 +3,14 @@
 
 #include <QWidget>
 
+namespace ff {
 class Database;
 struct Signal;
+} // namespace ff
+
 class QTableWidget;
+
+using namespace ff;
 
 // Read-only table of one signal's properties, shown in the right pane.
 class SignalPropertiesWidget : public QWidget

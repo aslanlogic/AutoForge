@@ -3,10 +3,15 @@
 
 #include <QWidget>
 
+namespace ff {
 class Database;
 struct Message;
+} // namespace ff
+
 class MessageLayoutWidget;
 class QTableWidget;
+
+using namespace ff;
 
 // Read-only view of one message, shown in the right pane: its properties and,
 // below them, the signals it carries as a list and as a layout grid.

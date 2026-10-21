@@ -3,9 +3,14 @@
 
 #include <QWidget>
 
+namespace ff {
 class Database;
 struct ValueTable;
+} // namespace ff
+
 class QTableWidget;
+
+using namespace ff;
 
 // Read-only view of one value table, shown in the right pane: its name and
 // comment, its entries, and the signals that use it.

@@ -3,7 +3,11 @@
 
 #include <QAbstractTableModel>
 
+namespace ff {
 class Database;
+} // namespace ff
+
+using namespace ff;
 
 // Table of all messages in the Database: one row per message, one column per property.
 // Works like SignalTableModel: it holds no data of its own and reads everything from Database.

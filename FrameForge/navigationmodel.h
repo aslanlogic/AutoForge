@@ -5,7 +5,11 @@
 #include <QHash>
 #include <QVector>
 
+namespace ff {
 class Database;
+} // namespace ff
+
+using namespace ff;
 
 // Tree model for the left pane. Shows a fixed heading per category and,
 // under each heading, the items of that category taken from the Database.

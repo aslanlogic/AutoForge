@@ -19,6 +19,8 @@ class QTableWidget;
 class QTabWidget;
 class QWidget;
 
+using namespace ff;
+
 class MessageDialog : public QDialog
 {
     Q_OBJECT

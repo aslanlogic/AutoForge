@@ -3,7 +3,10 @@
 
 #include <QMainWindow>
 
+namespace ff {
 class Database;
+} // namespace ff
+
 class MessagePropertiesWidget;
 class MessageTableModel;
 class NavigationFilterModel;
@@ -21,6 +24,8 @@ class SignalPropertiesWidget;
 class SignalTableModel;
 class ValueTablePropertiesWidget;
 class ValueTableTableModel;
+
+using namespace ff;
 
 class MainWindow : public QMainWindow
 {

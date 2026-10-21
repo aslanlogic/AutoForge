@@ -3,7 +3,11 @@
 
 #include <QAbstractTableModel>
 
+namespace ff {
 class Database;
+} // namespace ff
+
+using namespace ff;
 
 // Table of all signals in the Database: one row per signal, one column per property.
 // Like NavigationModel, it holds no data of its own and reads everything from Database.

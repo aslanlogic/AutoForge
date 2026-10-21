@@ -3,9 +3,14 @@
 
 #include <QWidget>
 
+namespace ff {
 class Database;
 struct Node;
+} // namespace ff
+
 class QTableWidget;
+
+using namespace ff;
 
 // Read-only view of one network node, shown in the right pane: its name and
 // comment, and the messages it transmits (Tx) and receives (Rx).

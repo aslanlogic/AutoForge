@@ -7,6 +7,8 @@
 #include <QVector>
 #include <QWidget>
 
+using namespace ff;
+
 // Draws a message payload as a grid (one row per byte, bit 7 on the left,
 // bit 0 on the right) with every placed signal as a coloured block.
 // A signal can be dragged with the mouse to a new position; when dropped

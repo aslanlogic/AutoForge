@@ -3,7 +3,11 @@
 
 #include <QAbstractTableModel>
 
+namespace ff {
 class Database;
+} // namespace ff
+
+using namespace ff;
 
 // Table of all network nodes in the Database: one row per node.
 // Works like SignalTableModel: it holds no data of its own and reads everything from Database.

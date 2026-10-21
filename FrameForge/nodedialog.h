@@ -9,6 +9,8 @@
 class QLineEdit;
 class QPlainTextEdit;
 
+using namespace ff;
+
 // Asks for a network node's name and comment.
 class NodeDialog : public QDialog
 {

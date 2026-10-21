@@ -10,6 +10,8 @@ class QLineEdit;
 class QPlainTextEdit;
 class QTableWidget;
 
+using namespace ff;
+
 // Edits a value table: its name, its value -> description entries and a comment.
 class ValueTableDialog : public QDialog
 {

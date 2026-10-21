@@ -3,8 +3,13 @@
 
 #include <QWidget>
 
+namespace ff {
 class Database;
+} // namespace ff
+
 class QTableWidget;
+
+using namespace ff;
 
 // Read-only overview of the whole document, shown when "Network" is clicked:
 // how many nodes, messages and signals there are, the protocol and its settings.
