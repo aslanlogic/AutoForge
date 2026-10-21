@@ -1,7 +1,7 @@
 #ifndef NODEDIALOG_H
 #define NODEDIALOG_H
 
-#include "FrameForgeCore/node.h"
+#include "ffcore/node.h"
 
 #include <QDialog>
 #include <QStringList>

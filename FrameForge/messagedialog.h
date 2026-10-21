@@ -1,8 +1,8 @@
 #ifndef MESSAGEDIALOG_H
 #define MESSAGEDIALOG_H
 
-#include "FrameForgeCore/message.h"
-#include "FrameForgeCore/node.h"
+#include "ffcore/message.h"
+#include "ffcore/node.h"
 
 #include <QDialog>
 #include <QHash>

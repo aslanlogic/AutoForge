@@ -6,7 +6,7 @@ QT = core
 
 CONFIG += c++17 staticlib
 
-TARGET = FrameForgeCore
+TARGET = ffcore
 TEMPLATE = lib
 
 SOURCES += \

@@ -1,7 +1,7 @@
 #ifndef VALUETABLEDIALOG_H
 #define VALUETABLEDIALOG_H
 
-#include "FrameForgeCore/valuetable.h"
+#include "ffcore/valuetable.h"
 
 #include <QDialog>
 #include <QStringList>

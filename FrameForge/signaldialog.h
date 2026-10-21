@@ -1,8 +1,8 @@
 #ifndef SIGNALDIALOG_H
 #define SIGNALDIALOG_H
 
-#include "FrameForgeCore/signal.h"
-#include "FrameForgeCore/valuetable.h"
+#include "ffcore/signal.h"
+#include "ffcore/valuetable.h"
 
 #include <QDialog>
 #include <QHash>
