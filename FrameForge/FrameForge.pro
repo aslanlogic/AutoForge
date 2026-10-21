@@ -54,5 +54,5 @@ HEADERS += \
 RESOURCES += \
     resources.qrc
 
-# The data, the Database and .ffxml reading/writing come from the core library.
-include(../core/core.pri)
+# The data, the Database and .ffxml reading/writing come from the FrameForgeCore library.
+include(../FrameForgeCore/FrameForgeCore.pri)
