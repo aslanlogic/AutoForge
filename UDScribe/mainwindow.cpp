@@ -1,13 +1,23 @@
 #include "mainwindow.h"
 #include "navigationmodel.h"
 #include "securityleveldialog.h"
+#include "securitylevelpropertieswidget.h"
+#include "securityleveltablemodel.h"
 #include "usccore/database.h"
+#include "usccore/xmlstorage.h"
 
+#include <QCloseEvent>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QHeaderView>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
+#include <QSortFilterProxyModel>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTableView>
 #include <QTreeView>
 
 namespace {
@@ -29,12 +39,31 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     resize(1024, 768);
-    setWindowTitle("UDScribe");
 
     m_database = new Database(this);
     m_navigationModel = new NavigationModel(m_database, this);
-
+    setupMenus();
     setupLayout();
+    setCurrentFilePath(QString());
+
+    // Any edit marks the document as unsaved: Qt then shows '*' in place of "[*]" in the title.
+    // Opening a file (Database::wasReset) is not an edit, so it is not connected here.
+    connect(m_database, &Database::securityLevelAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::securityLevelChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::securityLevelRemoved, this, [this] { setWindowModified(true); });
+}
+
+void MainWindow::setupMenus()
+{
+    QMenu *fileMenu = menuBar()->addMenu("&File");
+    fileMenu->addAction(QIcon::fromTheme("document-new"), "&New",
+                        this, &MainWindow::newFile, QKeySequence::New);
+    fileMenu->addAction(QIcon::fromTheme("document-open"), "&Open...",
+                        this, &MainWindow::openFile, QKeySequence::Open);
+    fileMenu->addAction(QIcon::fromTheme("document-save"), "&Save",
+                        this, &MainWindow::saveFile, QKeySequence::Save);
+    fileMenu->addAction(QIcon::fromTheme("document-save-as"), "Save &As...",
+                        this, &MainWindow::saveFileAs, QKeySequence("Ctrl+Shift+S"));
 }
 
 void MainWindow::setupLayout()
@@ -49,6 +78,9 @@ void MainWindow::setupLayout()
     // Show newly added items by expanding their service.
     connect(m_navigationModel, &NavigationModel::rowsInserted,
             m_navigationTree, &QTreeView::expand);
+    // And show everything of a newly opened file. The model resets itself on the
+    // same signal first, because it was connected first.
+    connect(m_database, &Database::wasReset, m_navigationTree, &QTreeView::expandAll);
 
     m_navigationTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_navigationTree, &QTreeView::customContextMenuRequested,
@@ -56,10 +88,26 @@ void MainWindow::setupLayout()
     connect(m_navigationTree, &QTreeView::doubleClicked,
             this, &MainWindow::onNavigationDoubleClicked);
 
-    // Right pane: will show what is clicked in the tree.
+    // Right pane: shows what is clicked in the tree.
     m_rightPane = new QStackedWidget(m_splitter);
     m_emptyPage = new QWidget;
+    m_securityLevelTableModel = new SecurityLevelTableModel(m_database, this);
+    m_securityLevelTable = createSortableTable(m_securityLevelTableModel, SecurityLevelTableModel::SortRole);
+    m_securityLevelProperties = new SecurityLevelPropertiesWidget;
     m_rightPane->addWidget(m_emptyPage);
+    m_rightPane->addWidget(m_securityLevelTable);
+    m_rightPane->addWidget(m_securityLevelProperties);
+    connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &MainWindow::onCurrentNavigationChanged);
+
+    // Keep the shown security level up to date. The table updates itself through its model.
+    connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshSecurityLevelProperties);
+    connect(m_database, &Database::securityLevelRemoved, this, &MainWindow::refreshSecurityLevelProperties);
+    // New and Open renumber all ids and leave nothing selected in the tree: start empty.
+    connect(m_database, &Database::wasReset, this, [this] {
+        m_shownSecurityLevelId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    });
 
     m_splitter->addWidget(m_navigationTree);
     m_splitter->addWidget(m_rightPane);
@@ -70,6 +118,35 @@ void MainWindow::setupLayout()
     m_splitter->setSizes({leftWidth, width() - leftWidth});
 
     setCentralWidget(m_splitter);
+}
+
+QTableView *MainWindow::createSortableTable(QAbstractItemModel *model, int sortRole)
+{
+    // model -> sort proxy -> QTableView.
+    // Clicking a column header sorts the view only; Database keeps its own order.
+    auto *sortModel = new QSortFilterProxyModel(this);
+    sortModel->setSourceModel(model);
+    sortModel->setSortRole(sortRole);
+    sortModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+
+    auto *table = new QTableView;
+    table->setModel(sortModel);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->verticalHeader()->setVisible(false);
+    table->horizontalHeader()->setStretchLastSection(true);
+    // The table is still empty here, so this measures only the column titles:
+    // widen a column where its title needs it, otherwise keep the default width.
+    table->resizeColumnsToContents();
+    for (int column = 0; column < model->columnCount(); ++column) {
+        table->setColumnWidth(column, qMax(table->columnWidth(column),
+                                           table->horizontalHeader()->defaultSectionSize()));
+    }
+    // Start in creation order (no sort column); a header click sorts by that column.
+    table->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+    table->setSortingEnabled(true);
+
+    return table;
 }
 
 void MainWindow::showNavigationContextMenu(const QPoint &pos)
@@ -104,6 +181,39 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
     case NavigationModel::SecurityLevelItem:
         editSecurityLevel(id);
         break;
+    }
+}
+
+void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
+{
+    // A service shows the table of all its items, an item shows its own properties.
+    m_shownSecurityLevelId = 0;
+    switch (current.data(NavigationModel::ItemKindRole).toInt()) {
+    case NavigationModel::ServiceItem:
+        if (current.row() == NavigationModel::SecurityAccess) {
+            m_rightPane->setCurrentWidget(m_securityLevelTable);
+            return;
+        }
+        break;
+    case NavigationModel::SecurityLevelItem:
+        m_shownSecurityLevelId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshSecurityLevelProperties();
+        return;
+    }
+    m_rightPane->setCurrentWidget(m_emptyPage);
+}
+
+void MainWindow::refreshSecurityLevelProperties()
+{
+    if (m_shownSecurityLevelId == 0)
+        return; // no security level is shown
+
+    if (const SecurityLevel *securityLevel = m_database->findSecurityLevel(m_shownSecurityLevelId)) {
+        m_securityLevelProperties->showSecurityLevel(*securityLevel);
+        m_rightPane->setCurrentWidget(m_securityLevelProperties);
+    } else {
+        m_shownSecurityLevelId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
     }
 }
 
@@ -163,4 +273,99 @@ void MainWindow::deleteSecurityLevel(int id)
     if (QMessageBox::question(this, "Delete Security Level", question,
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
         m_database->removeSecurityLevel(id);
+}
+
+namespace {
+// UDScribe files are XML inside, but get their own extension.
+const QString FileExtension = "uscxml";
+const QString FileFilter = "UDScribe files (*.uscxml);;All files (*)";
+}
+
+void MainWindow::newFile()
+{
+    if (!maybeSave())
+        return;
+
+    m_database->replaceAll({});
+    setCurrentFilePath(QString());
+    setWindowModified(false);
+}
+
+void MainWindow::openFile()
+{
+    if (!maybeSave())
+        return;
+
+    const QString filePath = QFileDialog::getOpenFileName(this, "Open", QString(), FileFilter);
+    if (filePath.isEmpty())
+        return;
+
+    QString error;
+    if (!XmlStorage::load(*m_database, filePath, &error)) {
+        QMessageBox::warning(this, "Open", QString("Could not open %1:\n%2").arg(filePath, error));
+        return;
+    }
+    setCurrentFilePath(filePath);
+    setWindowModified(false);
+}
+
+bool MainWindow::saveFile()
+{
+    if (m_currentFilePath.isEmpty())
+        return saveFileAs();
+    return saveTo(m_currentFilePath);
+}
+
+bool MainWindow::saveFileAs()
+{
+    QString filePath = QFileDialog::getSaveFileName(this, "Save As", m_currentFilePath, FileFilter);
+    if (filePath.isEmpty())
+        return false;
+    // Always save with our extension: "engine" and "engine.txt" become
+    // "engine.uscxml" and "engine.txt.uscxml".
+    if (QFileInfo(filePath).suffix().compare(FileExtension, Qt::CaseInsensitive) != 0)
+        filePath += "." + FileExtension;
+
+    return saveTo(filePath);
+}
+
+bool MainWindow::saveTo(const QString &filePath)
+{
+    QString error;
+    if (!XmlStorage::save(*m_database, filePath, &error)) {
+        QMessageBox::warning(this, "Save", QString("Could not save %1:\n%2").arg(filePath, error));
+        return false;
+    }
+    setCurrentFilePath(filePath);
+    setWindowModified(false);
+    return true;
+}
+
+void MainWindow::setCurrentFilePath(const QString &filePath)
+{
+    m_currentFilePath = filePath;
+    const QString fileName = filePath.isEmpty() ? "Untitled" : QFileInfo(filePath).fileName();
+    setWindowTitle(QString("%1[*] - UDScribe").arg(fileName));
+}
+
+bool MainWindow::maybeSave()
+{
+    if (!isWindowModified())
+        return true;
+
+    const auto answer = QMessageBox::warning(
+        this, "UDScribe", "The document has unsaved changes.\nDo you want to save them?",
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+
+    if (answer == QMessageBox::Save)
+        return saveFile(); // false if the user cancels Save As or saving fails
+    return answer == QMessageBox::Discard;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (maybeSave())
+        event->accept();
+    else
+        event->ignore();
 }

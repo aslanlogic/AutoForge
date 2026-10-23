@@ -11,12 +11,17 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     navigationmodel.cpp \
-    securityleveldialog.cpp
+    securityleveldialog.cpp \
+    securitylevelpropertieswidget.cpp \
+    securityleveltablemodel.cpp
 
 HEADERS += \
     mainwindow.h \
     navigationmodel.h \
-    securityleveldialog.h
+    propertytable.h \
+    securityleveldialog.h \
+    securitylevelpropertieswidget.h \
+    securityleveltablemodel.h
 
 RESOURCES += \
     resources.qrc
