@@ -8,3 +8,12 @@ CONFIG += c++17 staticlib
 
 TARGET = usccore
 TEMPLATE = lib
+
+SOURCES += \
+    database.cpp \
+    xmlstorage.cpp
+
+HEADERS += \
+    database.h \
+    securitylevel.h \
+    xmlstorage.h

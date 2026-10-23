@@ -9,10 +9,17 @@ TEMPLATE = app
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    navigationmodel.cpp \
+    securityleveldialog.cpp
 
 HEADERS += \
-    mainwindow.h
+    mainwindow.h \
+    navigationmodel.h \
+    securityleveldialog.h
+
+RESOURCES += \
+    resources.qrc
 
 # The diagnostic data and .uscxml reading/writing come from the usccore library.
 include(../usccore/usccore.pri)
