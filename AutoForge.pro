@@ -1,15 +1,20 @@
-# AutoForge: builds the shared library and the programs that use it.
+# AutoForge: builds the shared libraries and the programs that use them.
 #
 #   ffcore/      message database, .ffxml files, consistency checks (QtCore only)
 #   FrameForge/  the database editor (GUI)
+#   usccore/     diagnostic description, .uscxml files (QtCore only)
+#   UDScribe/    the diagnostic description editor (GUI)
 #
-# The traffic analyser DiagProbe will be added here as a third subdirectory.
+# The traffic analyser DiagProbe will be added here later.
 
 TEMPLATE = subdirs
 
 SUBDIRS = \
     ffcore \
-    FrameForge
+    FrameForge \
+    usccore \
+    UDScribe
 
-# Build ffcore first: FrameForge links against it.
+# Build each library before the program that links against it.
 FrameForge.depends = ffcore
+UDScribe.depends = usccore
