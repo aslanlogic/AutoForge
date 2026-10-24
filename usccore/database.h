@@ -43,9 +43,12 @@ public:
     // the default session.
     // Emits nothing if it is the same as the stored one.
     bool updateSession(const Session &session);
-    // Deletes the session. The default session is not deleted: returns false
-    // then, and also if there is no session with this id.
+    // Deletes the session. The default session and a session that a security level
+    // is still allowed in are not deleted: returns false then, and also if there is
+    // no session with this id.
     bool removeSession(int id);
+    // Names of the security levels that are allowed in this session.
+    QStringList securityLevelsUsingSession(int id) const;
 
     const QVector<SecurityLevel> &allSecurityLevels() const;
     QStringList securityLevelNames() const;
@@ -64,6 +67,8 @@ public:
 
     // Throws away everything and stores these instead, each with a new unique id.
     // Used when a file is opened. Adds the default session if newSessions has none.
+    // The sessions must come with ids that are unique among them; the security
+    // levels' sessionIds are renumbered along with them, unknown ones are dropped.
     void replaceAll(const Network &newNetwork, QVector<Session> newSessions,
                     QVector<SecurityLevel> newSecurityLevels);
 

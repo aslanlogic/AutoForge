@@ -24,6 +24,12 @@ SecurityLevelTableModel::SecurityLevelTableModel(Database *database, QObject *pa
         endRemoveRows();
     });
 
+    // The Allowed Sessions column shows session names.
+    connect(m_database, &Database::sessionChanged, this, [this] {
+        if (rowCount() > 0)
+            emit dataChanged(index(0, AllowedSessions), index(rowCount() - 1, AllowedSessions));
+    });
+
     connect(m_database, &Database::aboutToBeReset, this, &SecurityLevelTableModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &SecurityLevelTableModel::endResetModel);
 }
@@ -58,6 +64,14 @@ QVariant SecurityLevelTableModel::data(const QModelIndex &index, int role) const
     case SeedLength:  return securityLevel.seedLength;
     case KeyLength:   return securityLevel.keyLength;
     case MaxAttempts: return securityLevel.maxAttempts;
+    case AllowedSessions: {
+        QStringList names;
+        for (int sessionId : securityLevel.sessionIds) {
+            if (const Session *session = m_database->findSession(sessionId))
+                names << subFunctionToText(session->sessionType) + ' ' + session->name;
+        }
+        return names.join(", ");
+    }
     case Comment:     return securityLevel.comment;
     }
     return QVariant();
@@ -69,6 +83,6 @@ QVariant SecurityLevelTableModel::headerData(int section, Qt::Orientation orient
         return QVariant();
 
     static const char *const headers[ColumnCount] = {
-        "Name", "Request Seed", "Send Key", "Seed Length", "Key Length", "Max Attempts", "Comment"};
+        "Name", "Request Seed", "Send Key", "Seed Length", "Key Length", "Max Attempts", "Allowed Sessions", "Comment"};
     return QString(headers[section]);
 }

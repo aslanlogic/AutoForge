@@ -4,6 +4,7 @@
 #include <QWidget>
 
 namespace usc {
+class Database;
 struct SecurityLevel;
 } // namespace usc
 
@@ -19,7 +20,8 @@ class SecurityLevelPropertiesWidget : public QWidget
 public:
     explicit SecurityLevelPropertiesWidget(QWidget *parent = nullptr);
 
-    void showSecurityLevel(const SecurityLevel &securityLevel);
+    // The database is needed for the names of the allowed sessions.
+    void showSecurityLevel(const SecurityLevel &securityLevel, const Database &database);
 
 private:
     QTableWidget *m_propertiesTable = nullptr;

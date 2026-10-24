@@ -21,6 +21,7 @@ class Database;
 //     </Sessions>
 //     <SecurityLevels>
 //       <SecurityLevel name="Extended" requestSeed="0x01" seedLength="4" keyLength="4" maxAttempts="3">
+//         <AllowedSession name="Extended"/>         (by session name; one per session)
 //         <Comment>Unlocks writing of calibration data</Comment>
 //       </SecurityLevel>
 //     </SecurityLevels>

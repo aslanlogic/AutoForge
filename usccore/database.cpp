@@ -1,5 +1,7 @@
 #include "database.h"
 
+#include <QHash>
+
 #include <algorithm>
 
 namespace usc {
@@ -96,13 +98,24 @@ bool Database::updateSession(const Session &session)
 bool Database::removeSession(int id)
 {
     const int index = indexOfSession(id);
-    if (index < 0 || m_sessions.at(index).sessionType == DefaultSessionType)
+    if (index < 0 || m_sessions.at(index).sessionType == DefaultSessionType
+        || !securityLevelsUsingSession(id).isEmpty())
         return false;
 
     emit sessionAboutToBeRemoved(index);
     m_sessions.removeAt(index);
     emit sessionRemoved(id);
     return true;
+}
+
+QStringList Database::securityLevelsUsingSession(int id) const
+{
+    QStringList names;
+    for (const SecurityLevel &securityLevel : m_securityLevels) {
+        if (securityLevel.sessionIds.contains(id))
+            names << securityLevel.name;
+    }
+    return names;
 }
 
 const QVector<SecurityLevel> &Database::allSecurityLevels() const
@@ -179,10 +192,21 @@ void Database::replaceAll(const Network &newNetwork, QVector<Session> newSession
 
     emit aboutToBeReset();
     m_nextId = 1;
-    for (Session &session : newSessions)
+    QHash<int, int> newSessionIds; // id given by the caller -> new id
+    for (Session &session : newSessions) {
+        if (session.id != 0)
+            newSessionIds.insert(session.id, m_nextId);
         session.id = m_nextId++;
-    for (SecurityLevel &securityLevel : newSecurityLevels)
+    }
+    for (SecurityLevel &securityLevel : newSecurityLevels) {
         securityLevel.id = m_nextId++;
+        QVector<int> sessionIds;
+        for (int sessionId : securityLevel.sessionIds) {
+            if (newSessionIds.contains(sessionId))
+                sessionIds.append(newSessionIds.value(sessionId));
+        }
+        securityLevel.sessionIds = sessionIds;
+    }
     m_network = newNetwork;
     m_sessions = newSessions;
     m_securityLevels = newSecurityLevels;

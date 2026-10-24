@@ -5,6 +5,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QSpinBox>
@@ -13,7 +14,8 @@
 using namespace usc;
 
 SecurityLevelDialog::SecurityLevelDialog(const SecurityLevel &securityLevel, const QStringList &existingNames,
-                                         const QVector<quint8> &usedRequestSeeds, QWidget *parent)
+                                         const QVector<quint8> &usedRequestSeeds, const QVector<Session> &sessions,
+                                         QWidget *parent)
     : QDialog(parent)
     , m_securityLevel(securityLevel)
     , m_existingNames(existingNames)
@@ -49,6 +51,13 @@ SecurityLevelDialog::SecurityLevelDialog(const SecurityLevel &securityLevel, con
     m_maxAttemptsBox->setRange(0, 255);
     m_maxAttemptsBox->setValue(securityLevel.maxAttempts);
 
+    m_sessionList = new QListWidget;
+    for (const Session &session : sessions) {
+        auto *item = new QListWidgetItem(subFunctionToText(session.sessionType) + ' ' + session.name, m_sessionList);
+        item->setData(Qt::UserRole, session.id);
+        item->setCheckState(securityLevel.sessionIds.contains(session.id) ? Qt::Checked : Qt::Unchecked);
+    }
+
     m_commentEdit = new QPlainTextEdit(securityLevel.comment);
 
     auto *form = new QFormLayout;
@@ -58,6 +67,7 @@ SecurityLevelDialog::SecurityLevelDialog(const SecurityLevel &securityLevel, con
     form->addRow("Seed Length:", m_seedLengthBox);
     form->addRow("Key Length:", m_keyLengthBox);
     form->addRow("Max Attempts:", m_maxAttemptsBox);
+    form->addRow("Allowed in Sessions:", m_sessionList);
     form->addRow("Comment:", m_commentEdit);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -68,7 +78,7 @@ SecurityLevelDialog::SecurityLevelDialog(const SecurityLevel &securityLevel, con
     layout->addLayout(form);
     layout->addWidget(buttons);
 
-    resize(480, 400);
+    resize(480, 520);
 }
 
 SecurityLevel SecurityLevelDialog::securityLevel() const
@@ -80,6 +90,12 @@ SecurityLevel SecurityLevelDialog::securityLevel() const
     securityLevel.seedLength = m_seedLengthBox->value();
     securityLevel.keyLength = m_keyLengthBox->value();
     securityLevel.maxAttempts = m_maxAttemptsBox->value();
+    securityLevel.sessionIds.clear();
+    for (int row = 0; row < m_sessionList->count(); ++row) {
+        const QListWidgetItem *item = m_sessionList->item(row);
+        if (item->checkState() == Qt::Checked)
+            securityLevel.sessionIds.append(item->data(Qt::UserRole).toInt());
+    }
     securityLevel.comment = m_commentEdit->toPlainText();
     return securityLevel;
 }
@@ -97,6 +113,9 @@ void SecurityLevelDialog::accept()
     } else if (m_requestSeedBox->currentIndex() < 0) {
         error = "Every requestSeed sub-function is already used by another security level.";
         badField = m_requestSeedBox;
+    } else if (securityLevel().sessionIds.isEmpty()) {
+        error = "Please choose at least one session the security level is allowed in.";
+        badField = m_sessionList;
     }
 
     if (!error.isEmpty()) {

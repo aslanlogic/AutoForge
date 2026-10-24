@@ -13,6 +13,8 @@ using namespace usc;
 // per UDS service and, under each service, its items taken from the Database.
 //
 //   Network
+//   0x10 DiagnosticSessionControl
+//     <one row per session, e.g. "0x01 Default">
 //   0x27 SecurityAccess
 //     <one row per security level, e.g. "0x01 Extended">
 class NavigationModel : public QAbstractItemModel
@@ -20,15 +22,16 @@ class NavigationModel : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    enum Category { Network, SecurityAccess, CategoryCount };
+    enum Category { Network, DiagnosticSessionControl, SecurityAccess, CategoryCount };
 
     // What a row shows; ask with ItemKindRole.
     enum ItemKind {
         Heading, // row = Category
+        SessionItem,
         SecurityLevelItem
     };
 
-    // The id of the database object shown in that row, e.g. SecurityLevel::id.
+    // The id of the database object shown in that row: Session::id or SecurityLevel::id.
     static constexpr int ObjectIdRole = Qt::UserRole + 1;
     static constexpr int ItemKindRole = Qt::UserRole + 2;
 

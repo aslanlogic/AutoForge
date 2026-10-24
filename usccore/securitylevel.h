@@ -4,6 +4,7 @@
 #include "uds.h"
 
 #include <QString>
+#include <QVector>
 #include <QtGlobal>
 
 namespace usc {
@@ -19,6 +20,9 @@ struct SecurityLevel
     int seedLength = 4;  // in bytes
     int keyLength = 4;   // in bytes
     int maxAttempts = 3; // wrong keys accepted before the ECU refuses further tries
+    // Session::id of every session the level can be unlocked in. In any other
+    // session the ECU refuses the request.
+    QVector<int> sessionIds;
     QString comment;
 };
 
@@ -26,7 +30,8 @@ struct SecurityLevel
 inline bool operator==(const SecurityLevel &a, const SecurityLevel &b)
 {
     return a.id == b.id && a.name == b.name && a.requestSeed == b.requestSeed && a.seedLength == b.seedLength
-        && a.keyLength == b.keyLength && a.maxAttempts == b.maxAttempts && a.comment == b.comment;
+        && a.keyLength == b.keyLength && a.maxAttempts == b.maxAttempts && a.sessionIds == b.sessionIds
+        && a.comment == b.comment;
 }
 
 // The sendKey sub-function that belongs to a requestSeed sub-function.

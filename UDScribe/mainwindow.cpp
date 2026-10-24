@@ -5,6 +5,9 @@
 #include "securityleveldialog.h"
 #include "securitylevelpropertieswidget.h"
 #include "securityleveltablemodel.h"
+#include "sessiondialog.h"
+#include "sessionpropertieswidget.h"
+#include "sessiontablemodel.h"
 #include "usccore/database.h"
 #include "usccore/xmlstorage.h"
 
@@ -23,6 +26,17 @@
 #include <QTreeView>
 
 namespace {
+
+// The sessionType sub-functions of all sessions except the one with this id.
+QVector<quint8> sessionTypesUsedByOthers(const Database &database, int id)
+{
+    QVector<quint8> sessionTypes;
+    for (const Session &session : database.allSessions()) {
+        if (session.id != id)
+            sessionTypes.append(session.sessionType);
+    }
+    return sessionTypes;
+}
 
 // The requestSeed sub-functions of all security levels except the one with this id.
 QVector<quint8> requestSeedsUsedByOthers(const Database &database, int id)
@@ -51,6 +65,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Any edit marks the document as unsaved: Qt then shows '*' in place of "[*]" in the title.
     // Opening a file (Database::wasReset) is not an edit, so it is not connected here.
     connect(m_database, &Database::networkChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::sessionAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::sessionChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::sessionRemoved, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelRemoved, this, [this] { setWindowModified(true); });
@@ -94,12 +111,17 @@ void MainWindow::setupLayout()
     // Right pane: shows what is clicked in the tree.
     m_rightPane = new QStackedWidget(m_splitter);
     m_emptyPage = new QWidget;
+    m_sessionTableModel = new SessionTableModel(m_database, this);
+    m_sessionTable = createSortableTable(m_sessionTableModel, SessionTableModel::SortRole);
+    m_sessionProperties = new SessionPropertiesWidget;
     m_securityLevelTableModel = new SecurityLevelTableModel(m_database, this);
     m_securityLevelTable = createSortableTable(m_securityLevelTableModel, SecurityLevelTableModel::SortRole);
     m_networkProperties = new NetworkPropertiesWidget;
     m_securityLevelProperties = new SecurityLevelPropertiesWidget;
     m_rightPane->addWidget(m_emptyPage);
     m_rightPane->addWidget(m_networkProperties);
+    m_rightPane->addWidget(m_sessionTable);
+    m_rightPane->addWidget(m_sessionProperties);
     m_rightPane->addWidget(m_securityLevelTable);
     m_rightPane->addWidget(m_securityLevelProperties);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
@@ -107,10 +129,14 @@ void MainWindow::setupLayout()
 
     // Keep the shown network and security level up to date. The table updates itself through its model.
     connect(m_database, &Database::networkChanged, this, &MainWindow::refreshNetworkProperties);
+    connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshSessionProperties);
+    connect(m_database, &Database::sessionRemoved, this, &MainWindow::refreshSessionProperties);
     connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshSecurityLevelProperties);
+    connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshSecurityLevelProperties); // session names
     connect(m_database, &Database::securityLevelRemoved, this, &MainWindow::refreshSecurityLevelProperties);
     // New and Open renumber all ids and leave nothing selected in the tree: start empty.
     connect(m_database, &Database::wasReset, this, [this] {
+        m_shownSessionId = 0;
         m_shownSecurityLevelId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     });
@@ -170,8 +196,12 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
     // Service headings offer "Add...", the items under them offer "Delete".
     QMenu menu(this);
     if (kind == NavigationModel::Heading) {
-        if (index.row() == NavigationModel::SecurityAccess)
+        if (index.row() == NavigationModel::DiagnosticSessionControl)
+            menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSession);
+        else if (index.row() == NavigationModel::SecurityAccess)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSecurityLevel);
+    } else if (kind == NavigationModel::SessionItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSession(id); });
     } else if (kind == NavigationModel::SecurityLevelItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSecurityLevel(id); });
     }
@@ -188,6 +218,9 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
         if (index.row() == NavigationModel::Network)
             editNetwork();
         break;
+    case NavigationModel::SessionItem:
+        editSession(id);
+        break;
     case NavigationModel::SecurityLevelItem:
         editSecurityLevel(id);
         break;
@@ -197,6 +230,7 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
 void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
 {
     // A service shows the table of all its items, an item shows its own properties.
+    m_shownSessionId = 0;
     m_shownSecurityLevelId = 0;
     switch (current.data(NavigationModel::ItemKindRole).toInt()) {
     case NavigationModel::Heading:
@@ -205,11 +239,19 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
             refreshNetworkProperties();
             return;
         }
+        if (current.row() == NavigationModel::DiagnosticSessionControl) {
+            m_rightPane->setCurrentWidget(m_sessionTable);
+            return;
+        }
         if (current.row() == NavigationModel::SecurityAccess) {
             m_rightPane->setCurrentWidget(m_securityLevelTable);
             return;
         }
         break;
+    case NavigationModel::SessionItem:
+        m_shownSessionId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshSessionProperties();
+        return;
     case NavigationModel::SecurityLevelItem:
         m_shownSecurityLevelId = current.data(NavigationModel::ObjectIdRole).toInt();
         refreshSecurityLevelProperties();
@@ -218,13 +260,27 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
     m_rightPane->setCurrentWidget(m_emptyPage);
 }
 
+void MainWindow::refreshSessionProperties()
+{
+    if (m_shownSessionId == 0)
+        return; // no session is shown
+
+    if (const Session *session = m_database->findSession(m_shownSessionId)) {
+        m_sessionProperties->showSession(*session);
+        m_rightPane->setCurrentWidget(m_sessionProperties);
+    } else {
+        m_shownSessionId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    }
+}
+
 void MainWindow::refreshSecurityLevelProperties()
 {
     if (m_shownSecurityLevelId == 0)
         return; // no security level is shown
 
     if (const SecurityLevel *securityLevel = m_database->findSecurityLevel(m_shownSecurityLevelId)) {
-        m_securityLevelProperties->showSecurityLevel(*securityLevel);
+        m_securityLevelProperties->showSecurityLevel(*securityLevel, *m_database);
         m_rightPane->setCurrentWidget(m_securityLevelProperties);
     } else {
         m_shownSecurityLevelId = 0;
@@ -243,6 +299,83 @@ void MainWindow::editNetwork()
     NetworkDialog dialog(m_database->network(), this);
     if (dialog.exec() == QDialog::Accepted)
         m_database->setNetwork(dialog.network());
+}
+
+void MainWindow::createNewSession()
+{
+    const QStringList existingNames = m_database->sessionNames();
+    const QVector<quint8> usedSessionTypes = sessionTypesUsedByOthers(*m_database, 0);
+
+    // Pick the first free default name: New_Session_1, New_Session_2, ...
+    Session newSession;
+    int number = 1;
+    do {
+        newSession.name = QString("New_Session_%1").arg(number++);
+    } while (existingNames.contains(newSession.name));
+
+    // And the first free sessionType sub-function after the default one. If none
+    // is free, the dialog says so.
+    for (int value = 0; value <= 0xFF; ++value) {
+        const quint8 sessionType = quint8(value);
+        if (isValidSessionType(sessionType) && sessionType != DefaultSessionType
+            && !usedSessionTypes.contains(sessionType)) {
+            newSession.sessionType = sessionType;
+            break;
+        }
+    }
+
+    SessionDialog dialog(newSession, existingNames, usedSessionTypes, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addSession(dialog.session());
+}
+
+void MainWindow::editSession(int id)
+{
+    const Session *stored = m_database->findSession(id);
+    if (!stored)
+        return;
+    const Session session = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->sessionNames();
+    otherNames.removeOne(session.name);
+
+    SessionDialog dialog(session, otherNames, sessionTypesUsedByOthers(*m_database, id), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateSession(dialog.session());
+}
+
+void MainWindow::deleteSession(int id)
+{
+    const Session *session = m_database->findSession(id);
+    if (!session)
+        return;
+    const QString label = subFunctionToText(session->sessionType) + ' ' + session->name;
+
+    // The default session and a session that a security level is allowed in
+    // cannot be deleted (Database refuses it too).
+    if (session->sessionType == DefaultSessionType) {
+        QMessageBox::information(this, "Delete Session",
+                                 QString("The session '%1' cannot be deleted: every ECU has the "
+                                         "default session.").arg(label));
+        return;
+    }
+    const QStringList usedBy = m_database->securityLevelsUsingSession(id);
+    if (!usedBy.isEmpty()) {
+        QMessageBox::information(this, "Delete Session",
+                                 QString("The session '%1' cannot be deleted because these security "
+                                         "levels are allowed in it:\n%2\n\nRemove it from them first.")
+                                     .arg(label, usedBy.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the session '%1'?").arg(label);
+    if (QMessageBox::question(this, "Delete Session", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeSession(id);
 }
 
 void MainWindow::createNewSecurityLevel()
@@ -266,7 +399,7 @@ void MainWindow::createNewSecurityLevel()
         }
     }
 
-    SecurityLevelDialog dialog(newSecurityLevel, existingNames, usedRequestSeeds, this);
+    SecurityLevelDialog dialog(newSecurityLevel, existingNames, usedRequestSeeds, m_database->allSessions(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -283,7 +416,8 @@ void MainWindow::editSecurityLevel(int id)
     QStringList otherNames = m_database->securityLevelNames();
     otherNames.removeOne(securityLevel.name);
 
-    SecurityLevelDialog dialog(securityLevel, otherNames, requestSeedsUsedByOthers(*m_database, id), this);
+    SecurityLevelDialog dialog(securityLevel, otherNames, requestSeedsUsedByOthers(*m_database, id),
+                               m_database->allSessions(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 

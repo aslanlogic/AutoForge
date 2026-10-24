@@ -15,7 +15,10 @@ SOURCES += \
     networkpropertieswidget.cpp \
     securityleveldialog.cpp \
     securitylevelpropertieswidget.cpp \
-    securityleveltablemodel.cpp
+    securityleveltablemodel.cpp \
+    sessiondialog.cpp \
+    sessionpropertieswidget.cpp \
+    sessiontablemodel.cpp
 
 HEADERS += \
     mainwindow.h \
@@ -25,7 +28,10 @@ HEADERS += \
     propertytable.h \
     securityleveldialog.h \
     securitylevelpropertieswidget.h \
-    securityleveltablemodel.h
+    securityleveltablemodel.h \
+    sessiondialog.h \
+    sessionpropertieswidget.h \
+    sessiontablemodel.h
 
 RESOURCES += \
     resources.qrc

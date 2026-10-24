@@ -2,6 +2,7 @@
 #define SECURITYLEVELDIALOG_H
 
 #include "usccore/securitylevel.h"
+#include "usccore/session.h"
 
 #include <QDialog>
 #include <QStringList>
@@ -10,6 +11,7 @@
 class QComboBox;
 class QLabel;
 class QLineEdit;
+class QListWidget;
 class QPlainTextEdit;
 class QSpinBox;
 
@@ -23,8 +25,10 @@ class SecurityLevelDialog : public QDialog
 public:
     // existingNames: names already taken by other security levels; OK is refused for these.
     // usedRequestSeeds: requestSeed sub-functions of the other security levels; they are not offered.
+    // sessions: all sessions, offered as the sessions the level is allowed in.
     SecurityLevelDialog(const SecurityLevel &securityLevel, const QStringList &existingNames,
-                        const QVector<quint8> &usedRequestSeeds, QWidget *parent = nullptr);
+                        const QVector<quint8> &usedRequestSeeds, const QVector<Session> &sessions,
+                        QWidget *parent = nullptr);
 
     SecurityLevel securityLevel() const;
 
@@ -43,6 +47,7 @@ private:
     QSpinBox *m_seedLengthBox = nullptr;
     QSpinBox *m_keyLengthBox = nullptr;
     QSpinBox *m_maxAttemptsBox = nullptr;
+    QListWidget *m_sessionList = nullptr; // one checkable row per session; data = Session::id
     QPlainTextEdit *m_commentEdit = nullptr;
 };
 

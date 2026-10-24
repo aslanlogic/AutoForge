@@ -2,6 +2,7 @@
 #include "database.h"
 
 #include <QFile>
+#include <QHash>
 #include <QLocale>
 #include <QSaveFile>
 #include <QSet>
@@ -51,6 +52,8 @@ Session readSession(QXmlStreamReader &reader)
     // The largest values the positive response can report (see session.h).
     session.p2 = integer("p2", session.p2, 0, 65535);
     session.p2Star = integer("p2Star", session.p2Star, 0, 655350);
+    if (!reader.hasError() && session.p2Star % P2StarStep != 0)
+        reader.raiseError(QString("Session '%1': 'p2Star' must be a multiple of %2 ms.").arg(session.name).arg(P2StarStep));
 
     while (!reader.hasError() && reader.readNextStartElement()) {
         if (reader.name() == QLatin1String("Comment"))
@@ -62,7 +65,9 @@ Session readSession(QXmlStreamReader &reader)
 }
 
 // Reads one <SecurityLevel> element. On a problem it calls reader.raiseError().
-SecurityLevel readSecurityLevel(QXmlStreamReader &reader)
+// The names of its allowed sessions go to *sessionNames; they are turned into
+// ids once all sessions are read.
+SecurityLevel readSecurityLevel(QXmlStreamReader &reader, QStringList *sessionNames)
 {
     const QXmlStreamAttributes attributes = reader.attributes();
     SecurityLevel securityLevel;
@@ -100,10 +105,13 @@ SecurityLevel readSecurityLevel(QXmlStreamReader &reader)
     securityLevel.maxAttempts = integer("maxAttempts", securityLevel.maxAttempts, 0);
 
     while (!reader.hasError() && reader.readNextStartElement()) {
-        if (reader.name() == QLatin1String("Comment"))
+        if (reader.name() == QLatin1String("Comment")) {
             securityLevel.comment = reader.readElementText();
-        else
+        } else {
+            if (reader.name() == QLatin1String("AllowedSession"))
+                sessionNames->append(reader.attributes().value("name").toString());
             reader.skipCurrentElement();
+        }
     }
     return securityLevel;
 }
@@ -391,6 +399,12 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
         writer.writeAttribute("seedLength", QString::number(securityLevel.seedLength));
         writer.writeAttribute("keyLength", QString::number(securityLevel.keyLength));
         writer.writeAttribute("maxAttempts", QString::number(securityLevel.maxAttempts));
+        for (int sessionId : securityLevel.sessionIds) {
+            if (const Session *session = database.findSession(sessionId)) {
+                writer.writeEmptyElement("AllowedSession");
+                writer.writeAttribute("name", session->name);
+            }
+        }
         if (!securityLevel.comment.isEmpty())
             writer.writeTextElement("Comment", securityLevel.comment);
         writer.writeEndElement(); // SecurityLevel
@@ -421,6 +435,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     QSet<QString> sessionNames;
     QSet<quint8> sessionTypes;
     QVector<SecurityLevel> loadedSecurityLevels;
+    QVector<QStringList> allowedSessionNames; // per loaded security level; resolved once all sessions are read
     QSet<QString> securityLevelNames;
     QSet<quint8> requestSeeds;
 
@@ -442,7 +457,8 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                     reader.skipCurrentElement();
                     continue;
                 }
-                const Session session = readSession(reader);
+                Session session = readSession(reader);
+                session.id = loadedSessions.size() + 1; // temporary; Database renumbers
                 if (!reader.hasError() && sessionNames.contains(session.name))
                     reader.raiseError(QString("There are two sessions named '%1'.").arg(session.name));
                 if (!reader.hasError() && sessionTypes.contains(session.sessionType))
@@ -458,7 +474,8 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                     reader.skipCurrentElement();
                     continue;
                 }
-                const SecurityLevel securityLevel = readSecurityLevel(reader);
+                QStringList sessionNames;
+                const SecurityLevel securityLevel = readSecurityLevel(reader, &sessionNames);
                 if (!reader.hasError() && securityLevelNames.contains(securityLevel.name))
                     reader.raiseError(QString("There are two security levels named '%1'.").arg(securityLevel.name));
                 if (!reader.hasError() && requestSeeds.contains(securityLevel.requestSeed))
@@ -467,6 +484,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                 securityLevelNames.insert(securityLevel.name);
                 requestSeeds.insert(securityLevel.requestSeed);
                 loadedSecurityLevels.append(securityLevel);
+                allowedSessionNames.append(sessionNames);
             }
         } else {
             reader.skipCurrentElement();
@@ -476,6 +494,24 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     if (reader.hasError()) {
         *errorMessage = QString("Line %1: %2").arg(reader.lineNumber()).arg(reader.errorString());
         return false;
+    }
+
+    // Now that all sessions are known, turn the session names in security levels into ids.
+    QHash<QString, int> sessionIdByName;
+    for (const Session &session : loadedSessions)
+        sessionIdByName.insert(session.name, session.id);
+    for (int i = 0; i < loadedSecurityLevels.size(); ++i) {
+        SecurityLevel &securityLevel = loadedSecurityLevels[i];
+        for (const QString &name : allowedSessionNames.at(i)) {
+            if (!sessionIdByName.contains(name)) {
+                *errorMessage = QString("Security level '%1' is allowed in session '%2', which does not exist.")
+                                    .arg(securityLevel.name, name);
+                return false;
+            }
+            const int sessionId = sessionIdByName.value(name);
+            if (!securityLevel.sessionIds.contains(sessionId))
+                securityLevel.sessionIds.append(sessionId);
+        }
     }
 
     database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels);

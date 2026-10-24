@@ -30,6 +30,9 @@ inline bool operator==(const Session &a, const Session &b)
         && a.p2Star == b.p2Star && a.comment == b.comment;
 }
 
+// P2* is reported in 10 ms steps, so only multiples of 10 ms can be described exactly.
+const int P2StarStep = 10; // ms
+
 // The default session. Every ECU supports it and every document has it.
 const quint8 DefaultSessionType = 0x01;
 
@@ -40,6 +43,22 @@ inline bool isValidSessionType(quint8 sessionType)
 {
     return (sessionType >= 0x01 && sessionType <= 0x04)
         || (sessionType >= 0x40 && sessionType <= 0x7E);
+}
+
+// What ISO 14229-1 calls a sessionType, e.g. "Programming" for 0x02.
+inline QString sessionTypeDescription(quint8 sessionType)
+{
+    switch (sessionType) {
+    case 0x01: return "Default";
+    case 0x02: return "Programming";
+    case 0x03: return "Extended Diagnostic";
+    case 0x04: return "Safety System";
+    }
+    if (sessionType >= 0x40 && sessionType <= 0x5F)
+        return "Vehicle Manufacturer Specific";
+    if (sessionType >= 0x60 && sessionType <= 0x7E)
+        return "System Supplier Specific";
+    return "Reserved";
 }
 
 } // namespace usc

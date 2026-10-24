@@ -16,7 +16,7 @@ class SecurityLevelTableModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    enum Column { Name, RequestSeed, SendKey, SeedLength, KeyLength, MaxAttempts, Comment, ColumnCount };
+    enum Column { Name, RequestSeed, SendKey, SeedLength, KeyLength, MaxAttempts, AllowedSessions, Comment, ColumnCount };
 
     // Value to sort by: numbers as numbers (so 0x09 comes before 0x11).
     static constexpr int SortRole = Qt::UserRole + 1;
