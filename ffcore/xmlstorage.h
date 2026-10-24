@@ -1,5 +1,5 @@
-#ifndef XMLSTORAGE_H
-#define XMLSTORAGE_H
+#ifndef FFCORE_XMLSTORAGE_H
+#define FFCORE_XMLSTORAGE_H
 
 #include <QString>
 
@@ -54,4 +54,4 @@ bool load(Database &database, const QString &filePath, QString *errorMessage);
 
 } // namespace ff
 
-#endif // XMLSTORAGE_H
+#endif // FFCORE_XMLSTORAGE_H

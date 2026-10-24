@@ -1,5 +1,5 @@
-#ifndef XMLSTORAGE_H
-#define XMLSTORAGE_H
+#ifndef USCCORE_XMLSTORAGE_H
+#define USCCORE_XMLSTORAGE_H
 
 #include <QString>
 
@@ -71,4 +71,4 @@ bool load(Database &database, const QString &filePath, QString *errorMessage);
 
 } // namespace usc
 
-#endif // XMLSTORAGE_H
+#endif // USCCORE_XMLSTORAGE_H

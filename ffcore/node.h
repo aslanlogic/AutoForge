@@ -1,5 +1,5 @@
-#ifndef NODE_H
-#define NODE_H
+#ifndef FFCORE_NODE_H
+#define FFCORE_NODE_H
 
 #include <QString>
 
@@ -22,4 +22,4 @@ inline bool operator==(const Node &a, const Node &b)
 
 } // namespace ff
 
-#endif // NODE_H
+#endif // FFCORE_NODE_H

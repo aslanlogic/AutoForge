@@ -1,5 +1,5 @@
-#ifndef VALUETABLE_H
-#define VALUETABLE_H
+#ifndef USCCORE_VALUETABLE_H
+#define USCCORE_VALUETABLE_H
 
 #include <QString>
 #include <QVector>
@@ -36,4 +36,4 @@ inline bool operator==(const ValueTable &a, const ValueTable &b)
 
 } // namespace usc
 
-#endif // VALUETABLE_H
+#endif // USCCORE_VALUETABLE_H

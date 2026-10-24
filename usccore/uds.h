@@ -1,5 +1,5 @@
-#ifndef UDS_H
-#define UDS_H
+#ifndef USCCORE_UDS_H
+#define USCCORE_UDS_H
 
 #include <QString>
 #include <QtGlobal>
@@ -16,4 +16,4 @@ inline QString subFunctionToText(quint8 subFunction)
 
 } // namespace usc
 
-#endif // UDS_H
+#endif // USCCORE_UDS_H

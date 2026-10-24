@@ -1,5 +1,5 @@
-#ifndef NETWORK_H
-#define NETWORK_H
+#ifndef USCCORE_NETWORK_H
+#define USCCORE_NETWORK_H
 
 #include <QString>
 #include <QtGlobal>
@@ -226,4 +226,4 @@ inline quint32 maxId(const Network &network)
 
 } // namespace usc
 
-#endif // NETWORK_H
+#endif // USCCORE_NETWORK_H

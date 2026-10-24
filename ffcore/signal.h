@@ -1,5 +1,5 @@
-#ifndef SIGNAL_H
-#define SIGNAL_H
+#ifndef FFCORE_SIGNAL_H
+#define FFCORE_SIGNAL_H
 
 #include <QString>
 #include <QVector>
@@ -84,4 +84,4 @@ inline QString toString(Signal::ValueType valueType)
 
 } // namespace ff
 
-#endif // SIGNAL_H
+#endif // FFCORE_SIGNAL_H

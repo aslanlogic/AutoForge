@@ -1,5 +1,5 @@
-#ifndef NETWORK_H
-#define NETWORK_H
+#ifndef FFCORE_NETWORK_H
+#define FFCORE_NETWORK_H
 
 #include <QString>
 
@@ -180,4 +180,4 @@ inline QString toString(UdpSettings::Mode mode)
 
 } // namespace ff
 
-#endif // NETWORK_H
+#endif // FFCORE_NETWORK_H

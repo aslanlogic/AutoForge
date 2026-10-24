@@ -1,5 +1,5 @@
-#ifndef DATATYPE_H
-#define DATATYPE_H
+#ifndef USCCORE_DATATYPE_H
+#define USCCORE_DATATYPE_H
 
 #include <QString>
 #include <QVector>
@@ -127,4 +127,4 @@ inline QString toString(DataType::ValueType valueType)
 
 } // namespace usc
 
-#endif // DATATYPE_H
+#endif // USCCORE_DATATYPE_H

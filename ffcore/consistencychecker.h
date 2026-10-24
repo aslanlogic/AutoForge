@@ -1,5 +1,5 @@
-#ifndef CONSISTENCYCHECKER_H
-#define CONSISTENCYCHECKER_H
+#ifndef FFCORE_CONSISTENCYCHECKER_H
+#define FFCORE_CONSISTENCYCHECKER_H
 
 #include <QString>
 #include <QVector>
@@ -30,4 +30,4 @@ QVector<Issue> check(const Database &database);
 
 } // namespace ff
 
-#endif // CONSISTENCYCHECKER_H
+#endif // FFCORE_CONSISTENCYCHECKER_H

@@ -1,5 +1,5 @@
-#ifndef RESETTYPE_H
-#define RESETTYPE_H
+#ifndef USCCORE_RESETTYPE_H
+#define USCCORE_RESETTYPE_H
 
 #include "uds.h"
 
@@ -71,4 +71,4 @@ inline QString resetTypeDescription(quint8 resetType)
 
 } // namespace usc
 
-#endif // RESETTYPE_H
+#endif // USCCORE_RESETTYPE_H

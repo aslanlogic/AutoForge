@@ -1,5 +1,5 @@
-#ifndef SECURITYLEVEL_H
-#define SECURITYLEVEL_H
+#ifndef USCCORE_SECURITYLEVEL_H
+#define USCCORE_SECURITYLEVEL_H
 
 #include "uds.h"
 
@@ -53,4 +53,4 @@ inline bool isValidRequestSeed(quint8 requestSeed)
 
 } // namespace usc
 
-#endif // SECURITYLEVEL_H
+#endif // USCCORE_SECURITYLEVEL_H

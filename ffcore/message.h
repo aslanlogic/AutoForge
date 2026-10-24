@@ -1,5 +1,5 @@
-#ifndef MESSAGE_H
-#define MESSAGE_H
+#ifndef FFCORE_MESSAGE_H
+#define FFCORE_MESSAGE_H
 
 #include "network.h"
 #include "signal.h"
@@ -167,4 +167,4 @@ inline QString checkSignalLayout(int lengthInBytes, const QVector<SignalMapping>
 
 } // namespace ff
 
-#endif // MESSAGE_H
+#endif // FFCORE_MESSAGE_H

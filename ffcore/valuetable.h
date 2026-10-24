@@ -1,5 +1,5 @@
-#ifndef VALUETABLE_H
-#define VALUETABLE_H
+#ifndef FFCORE_VALUETABLE_H
+#define FFCORE_VALUETABLE_H
 
 #include <QString>
 #include <QVector>
@@ -36,4 +36,4 @@ inline bool operator==(const ValueTable &a, const ValueTable &b)
 
 } // namespace ff
 
-#endif // VALUETABLE_H
+#endif // FFCORE_VALUETABLE_H

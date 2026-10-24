@@ -1,5 +1,5 @@
-#ifndef DATABASE_H
-#define DATABASE_H
+#ifndef USCCORE_DATABASE_H
+#define USCCORE_DATABASE_H
 
 #include "dataidentifier.h"
 #include "datatype.h"
@@ -191,4 +191,4 @@ private:
 
 } // namespace usc
 
-#endif // DATABASE_H
+#endif // USCCORE_DATABASE_H

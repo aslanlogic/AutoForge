@@ -1,5 +1,5 @@
-#ifndef DATAIDENTIFIER_H
-#define DATAIDENTIFIER_H
+#ifndef USCCORE_DATAIDENTIFIER_H
+#define USCCORE_DATAIDENTIFIER_H
 
 #include "datatype.h"
 
@@ -103,4 +103,4 @@ inline QString checkDataTypeLayout(int lengthInBytes, const QVector<DataTypeMapp
 
 } // namespace usc
 
-#endif // DATAIDENTIFIER_H
+#endif // USCCORE_DATAIDENTIFIER_H

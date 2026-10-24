@@ -1,5 +1,5 @@
-#ifndef SESSION_H
-#define SESSION_H
+#ifndef USCCORE_SESSION_H
+#define USCCORE_SESSION_H
 
 #include "uds.h"
 
@@ -63,4 +63,4 @@ inline QString sessionTypeDescription(quint8 sessionType)
 
 } // namespace usc
 
-#endif // SESSION_H
+#endif // USCCORE_SESSION_H

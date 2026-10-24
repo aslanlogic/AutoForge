@@ -1,5 +1,5 @@
-#ifndef DATABASE_H
-#define DATABASE_H
+#ifndef FFCORE_DATABASE_H
+#define FFCORE_DATABASE_H
 
 #include "message.h"
 #include "network.h"
@@ -129,4 +129,4 @@ private:
 
 } // namespace ff
 
-#endif // DATABASE_H
+#endif // FFCORE_DATABASE_H
