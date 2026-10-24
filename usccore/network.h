@@ -99,6 +99,38 @@ struct Network
     int p2Star = 5000; // P2*server_max: after each NRC 0x78 (response pending)
 };
 
+// Equal if every setting is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const CanSettings &a, const CanSettings &b)
+{
+    return a.bitrate == b.bitrate && a.samplePoint == b.samplePoint && a.idFormat == b.idFormat;
+}
+
+inline bool operator==(const CanFdSettings &a, const CanFdSettings &b)
+{
+    return a.nominalBitrate == b.nominalBitrate && a.nominalSamplePoint == b.nominalSamplePoint
+        && a.dataBitrate == b.dataBitrate && a.dataSamplePoint == b.dataSamplePoint && a.iso == b.iso
+        && a.idFormat == b.idFormat;
+}
+
+inline bool operator==(const UartSettings &a, const UartSettings &b)
+{
+    return a.baudRate == b.baudRate && a.dataBits == b.dataBits && a.parity == b.parity
+        && a.stopBits == b.stopBits && a.flowControl == b.flowControl && a.idSize == b.idSize && a.crc == b.crc;
+}
+
+inline bool operator==(const UdpSettings &a, const UdpSettings &b)
+{
+    return a.mode == b.mode && a.localAddress == b.localAddress && a.localPort == b.localPort
+        && a.remoteAddress == b.remoteAddress && a.remotePort == b.remotePort
+        && a.multicastGroup == b.multicastGroup && a.idSize == b.idSize;
+}
+
+inline bool operator==(const Network &a, const Network &b)
+{
+    return a.protocol == b.protocol && a.can == b.can && a.canFd == b.canFd && a.uart == b.uart && a.udp == b.udp
+        && a.requestId == b.requestId && a.responseId == b.responseId && a.p2 == b.p2 && a.p2Star == b.p2Star;
+}
+
 // Display names, in the same wording as the Network dialog's combo boxes.
 inline QString toString(Network::Protocol protocol)
 {

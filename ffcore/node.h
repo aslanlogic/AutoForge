@@ -14,6 +14,12 @@ struct Node
     QString comment;
 };
 
+// Equal if every field is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const Node &a, const Node &b)
+{
+    return a.id == b.id && a.name == b.name && a.comment == b.comment;
+}
+
 } // namespace ff
 
 #endif // NODE_H

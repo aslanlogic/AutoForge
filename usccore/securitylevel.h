@@ -20,6 +20,13 @@ struct SecurityLevel
     QString comment;
 };
 
+// Equal if every field is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const SecurityLevel &a, const SecurityLevel &b)
+{
+    return a.id == b.id && a.name == b.name && a.requestSeed == b.requestSeed && a.seedLength == b.seedLength
+        && a.keyLength == b.keyLength && a.maxAttempts == b.maxAttempts && a.comment == b.comment;
+}
+
 // The sendKey sub-function that belongs to a requestSeed sub-function.
 inline quint8 sendKey(quint8 requestSeed)
 {

@@ -23,6 +23,17 @@ struct ValueTable
     QString comment;
 };
 
+// Equal if every field is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const ValueTable::Entry &a, const ValueTable::Entry &b)
+{
+    return a.value == b.value && a.description == b.description;
+}
+
+inline bool operator==(const ValueTable &a, const ValueTable &b)
+{
+    return a.id == b.id && a.name == b.name && a.entries == b.entries && a.comment == b.comment;
+}
+
 } // namespace ff
 
 #endif // VALUETABLE_H

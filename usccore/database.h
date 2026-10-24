@@ -23,6 +23,7 @@ public:
     // The network: its active protocol, that protocol's settings, the
     // request/response IDs and the response timing.
     const Network &network() const;
+    // Does nothing (and emits nothing) if the network is the same as the stored one.
     void setNetwork(const Network &network);
 
     const QVector<SecurityLevel> &allSecurityLevels() const;
@@ -35,6 +36,7 @@ public:
     // Assigns a new unique id to the security level, stores it and returns the id.
     int addSecurityLevel(SecurityLevel securityLevel);
     // Replaces the stored security level that has the same id. Returns false if there is none.
+    // Emits nothing if it is the same as the stored one.
     bool updateSecurityLevel(const SecurityLevel &securityLevel);
     // Deletes the security level. Returns false if there is none with this id.
     bool removeSecurityLevel(int id);

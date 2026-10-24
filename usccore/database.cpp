@@ -14,6 +14,8 @@ const Network &Database::network() const
 
 void Database::setNetwork(const Network &network)
 {
+    if (network == m_network)
+        return; // nothing changed: no signal, so the document is not marked as edited
     m_network = network;
     emit networkChanged();
 }
@@ -60,6 +62,8 @@ bool Database::updateSecurityLevel(const SecurityLevel &securityLevel)
     const int index = indexOfSecurityLevel(securityLevel.id);
     if (index < 0)
         return false;
+    if (m_securityLevels.at(index) == securityLevel)
+        return true; // nothing changed: no signal, so the document is not marked as edited
 
     m_securityLevels[index] = securityLevel;
     emit securityLevelChanged(securityLevel.id);

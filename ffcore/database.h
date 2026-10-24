@@ -24,6 +24,7 @@ public:
 
     // The network: its active protocol and that protocol's settings.
     const Network &network() const;
+    // Does nothing (and emits nothing) if the network is the same as the stored one.
     void setNetwork(const Network &network);
 
     const QVector<Signal> &allSignals() const;
@@ -36,6 +37,7 @@ public:
     // Assigns a new unique id to the signal, stores it and returns the id.
     int addSignal(Signal signal);
     // Replaces the stored signal that has the same id. Returns false if there is none.
+    // Emits nothing if it is the same as the stored one.
     bool updateSignal(const Signal &signal);
     // Deletes the signal. A signal that is still placed in a message is not
     // deleted: returns false then, and also if there is no signal with this id.

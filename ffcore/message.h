@@ -42,6 +42,20 @@ struct Message
     QString comment;
 };
 
+// Equal if every field is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const SignalMapping &a, const SignalMapping &b)
+{
+    return a.signalId == b.signalId && a.startBit == b.startBit;
+}
+
+inline bool operator==(const Message &a, const Message &b)
+{
+    return a.id == b.id && a.name == b.name && a.idFormat == b.idFormat && a.frameId == b.frameId
+        && a.length == b.length && a.txMethod == b.txMethod && a.cycleTime == b.cycleTime
+        && a.signalMappings == b.signalMappings && a.transmitterId == b.transmitterId
+        && a.receiverIds == b.receiverIds && a.comment == b.comment;
+}
+
 // Display names, in the same wording as the Message dialog's combo boxes.
 inline QString toString(Message::IdFormat idFormat)
 {

@@ -28,6 +28,15 @@ struct Signal
     QString comment;
 };
 
+// Equal if every field is equal. Used to tell whether an edit changed anything.
+inline bool operator==(const Signal &a, const Signal &b)
+{
+    return a.id == b.id && a.name == b.name && a.length == b.length && a.byteOrder == b.byteOrder
+        && a.valueType == b.valueType && a.unit == b.unit && a.initialValue == b.initialValue
+        && a.factor == b.factor && a.offset == b.offset && a.minimum == b.minimum && a.maximum == b.maximum
+        && a.valueTableId == b.valueTableId && a.comment == b.comment;
+}
+
 // Display names, in the same wording as the Signal dialog's combo boxes.
 inline QString toString(Signal::ByteOrder byteOrder)
 {

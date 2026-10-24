@@ -16,6 +16,8 @@ const Network &Database::network() const
 
 void Database::setNetwork(const Network &network)
 {
+    if (network == m_network)
+        return; // nothing changed: no signal, so the document is not marked as edited
     m_network = network;
     emit networkChanged();
 }
@@ -62,6 +64,8 @@ bool Database::updateSignal(const Signal &signal)
     const int index = indexOfSignal(signal.id);
     if (index < 0)
         return false;
+    if (m_signals.at(index) == signal)
+        return true; // nothing changed: no signal, so the document is not marked as edited
 
     m_signals[index] = signal;
     emit signalChanged(signal.id);
@@ -136,6 +140,8 @@ bool Database::updateMessage(const Message &message)
     const int index = indexOfMessage(message.id);
     if (index < 0)
         return false;
+    if (m_messages.at(index) == message)
+        return true; // nothing changed: no signal, so the document is not marked as edited
 
     m_messages[index] = message;
     emit messageChanged(message.id);
@@ -196,6 +202,8 @@ bool Database::updateNode(const Node &node)
     const int index = indexOfNode(node.id);
     if (index < 0)
         return false;
+    if (m_nodes.at(index) == node)
+        return true; // nothing changed: no signal, so the document is not marked as edited
 
     m_nodes[index] = node;
     emit nodeChanged(node.id);
@@ -276,6 +284,8 @@ bool Database::updateValueTable(const ValueTable &valueTable)
     const int index = indexOfValueTable(valueTable.id);
     if (index < 0)
         return false;
+    if (m_valueTables.at(index) == valueTable)
+        return true; // nothing changed: no signal, so the document is not marked as edited
 
     m_valueTables[index] = valueTable;
     emit valueTableChanged(valueTable.id);
