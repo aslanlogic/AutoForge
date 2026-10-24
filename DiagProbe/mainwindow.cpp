@@ -252,6 +252,8 @@ void MainWindow::updateStatus()
 void MainWindow::showWindow(QMdiSubWindow *window)
 {
     // Closing a sub-window only hides it (it is not deleted), so it can be shown again.
+    // Closing also hides the widget inside it, so that is shown again too.
+    window->widget()->show();
     window->showNormal();
     m_mdiArea->setActiveSubWindow(window);
 }
