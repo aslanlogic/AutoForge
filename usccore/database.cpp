@@ -134,7 +134,7 @@ QStringList Database::dataIdentifiersUsingSession(int id) const
 {
     QStringList names;
     for (const DataIdentifier &dataIdentifier : m_dataIdentifiers) {
-        if (dataIdentifier.readSessionIds.contains(id))
+        if (dataIdentifier.readSessionIds.contains(id) || dataIdentifier.writeSessionIds.contains(id))
             names << dataIdentifier.name;
     }
     return names;
@@ -216,7 +216,7 @@ QStringList Database::dataIdentifiersUsingSecurityLevel(int id) const
 {
     QStringList names;
     for (const DataIdentifier &dataIdentifier : m_dataIdentifiers) {
-        if (dataIdentifier.readSecurityLevelIds.contains(id))
+        if (dataIdentifier.readSecurityLevelIds.contains(id) || dataIdentifier.writeSecurityLevelIds.contains(id))
             names << dataIdentifier.name;
     }
     return names;
@@ -587,6 +587,8 @@ void Database::replaceAll(const Network &newNetwork, QVector<Session> newSession
         dataIdentifier.mappings = mappings;
         dataIdentifier.readSessionIds = renumbered(dataIdentifier.readSessionIds, newSessionIds);
         dataIdentifier.readSecurityLevelIds = renumbered(dataIdentifier.readSecurityLevelIds, newSecurityLevelIds);
+        dataIdentifier.writeSessionIds = renumbered(dataIdentifier.writeSessionIds, newSessionIds);
+        dataIdentifier.writeSecurityLevelIds = renumbered(dataIdentifier.writeSecurityLevelIds, newSecurityLevelIds);
     }
     m_network = newNetwork;
     m_sessions = newSessions;

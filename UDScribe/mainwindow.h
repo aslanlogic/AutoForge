@@ -1,6 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "usccore/dataidentifier.h"
+
 #include <QMainWindow>
 
 namespace usc {
@@ -78,6 +80,11 @@ private:
     void deleteResetType(int id);
     void createNewDataIdentifier();
     void editDataIdentifier(int id);
+    // 0x22 ReadDataByIdentifier / 0x2E WriteDataByIdentifier: make a DID readable or
+    // writable, change or remove that access.
+    void addAccessDataIdentifier(DidAccess access);
+    void editAccess(int id, DidAccess access);
+    void removeAccess(int id, DidAccess access);
     void deleteDataIdentifier(int id);
     void createNewDataType();
     void editDataType(int id);
@@ -109,6 +116,8 @@ private:
     QTableView *m_valueTableTable = nullptr;
     QTableView *m_dataTypeTable = nullptr;
     QTableView *m_dataIdentifierTable = nullptr;
+    QTableView *m_readDataIdentifierTable = nullptr;  // the readable DIDs only
+    QTableView *m_writeDataIdentifierTable = nullptr; // the writable DIDs only
     NetworkPropertiesWidget *m_networkProperties = nullptr;
     SessionPropertiesWidget *m_sessionProperties = nullptr;
     int m_shownSessionId = 0; // the session on m_sessionProperties; 0 = none

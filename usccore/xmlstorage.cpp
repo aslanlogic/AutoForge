@@ -159,6 +159,8 @@ struct DataIdentifierRefs
     QStringList dataTypes; // per placement, in the order of DataIdentifier::mappings
     QStringList readSessions;
     QStringList readSecurityLevels;
+    QStringList writeSessions;
+    QStringList writeSecurityLevels;
 };
 
 // Reads one <DataIdentifier> element. On a problem it calls reader.raiseError().
@@ -215,6 +217,10 @@ DataIdentifier readDataIdentifier(QXmlStreamReader &reader, DataIdentifierRefs *
             refs->readSessions.append(child.value("name").toString());
         } else if (reader.name() == QLatin1String("ReadSecurityLevel")) {
             refs->readSecurityLevels.append(child.value("name").toString());
+        } else if (reader.name() == QLatin1String("WriteSession")) {
+            refs->writeSessions.append(child.value("name").toString());
+        } else if (reader.name() == QLatin1String("WriteSecurityLevel")) {
+            refs->writeSecurityLevels.append(child.value("name").toString());
         }
         reader.skipCurrentElement();
     }
@@ -718,6 +724,18 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
                 writer.writeAttribute("name", securityLevel->name);
             }
         }
+        for (int sessionId : dataIdentifier.writeSessionIds) {
+            if (const Session *session = database.findSession(sessionId)) {
+                writer.writeEmptyElement("WriteSession");
+                writer.writeAttribute("name", session->name);
+            }
+        }
+        for (int securityLevelId : dataIdentifier.writeSecurityLevelIds) {
+            if (const SecurityLevel *securityLevel = database.findSecurityLevel(securityLevelId)) {
+                writer.writeEmptyElement("WriteSecurityLevel");
+                writer.writeAttribute("name", securityLevel->name);
+            }
+        }
         if (!dataIdentifier.comment.isEmpty())
             writer.writeTextElement("Comment", dataIdentifier.comment);
         writer.writeEndElement(); // DataIdentifier
@@ -1008,6 +1026,10 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         if (!resolveNames(refs.readSessions, sessionIdByName, &dataIdentifier.readSessionIds, owner, "session",
                           errorMessage)
             || !resolveNames(refs.readSecurityLevels, securityLevelIdByName, &dataIdentifier.readSecurityLevelIds,
+                             owner, "security level", errorMessage)
+            || !resolveNames(refs.writeSessions, sessionIdByName, &dataIdentifier.writeSessionIds, owner, "session",
+                             errorMessage)
+            || !resolveNames(refs.writeSecurityLevels, securityLevelIdByName, &dataIdentifier.writeSecurityLevelIds,
                              owner, "security level", errorMessage))
             return false;
         const QString layoutError = checkDataTypeLayout(dataIdentifier.length, dataIdentifier.mappings, dataTypesById);

@@ -54,24 +54,33 @@ DataIdentifierPropertiesWidget::DataIdentifierPropertiesWidget(QWidget *parent)
 
 void DataIdentifierPropertiesWidget::showDataIdentifier(const DataIdentifier &dataIdentifier, const Database &database)
 {
-    QStringList sessions;
-    for (int sessionId : dataIdentifier.readSessionIds) {
-        if (const Session *session = database.findSession(sessionId))
-            sessions << subFunctionToText(session->sessionType) + ' ' + session->name;
-    }
-    QStringList securityLevels;
-    for (int securityLevelId : dataIdentifier.readSecurityLevelIds) {
-        if (const SecurityLevel *securityLevel = database.findSecurityLevel(securityLevelId))
-            securityLevels << subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
-    }
+    auto sessionNames = [&](const QVector<int> &sessionIds, const QString &none) {
+        QStringList names;
+        for (int sessionId : sessionIds) {
+            if (const Session *session = database.findSession(sessionId))
+                names << subFunctionToText(session->sessionType) + ' ' + session->name;
+        }
+        return names.isEmpty() ? none : names.join(", ");
+    };
+    auto securityLevelNames = [&](const QVector<int> &securityLevelIds) {
+        QStringList names;
+        for (int securityLevelId : securityLevelIds) {
+            if (const SecurityLevel *securityLevel = database.findSecurityLevel(securityLevelId))
+                names << subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
+        }
+        return names.isEmpty() ? QString("(none needed)") : names.join(", ") + "  (any of them)";
+    };
 
     setPropertyRows(m_propertiesTable, {
         {"Name", dataIdentifier.name},
         {"DID", didToText(dataIdentifier.did)},
         {"Length", QString("%1 bytes").arg(dataIdentifier.length)},
-        {"Read in Sessions", sessions.join(", ")},
-        {"Read Security Levels", securityLevels.isEmpty() ? QString("(none needed)")
-                                                          : securityLevels.join(", ") + "  (any of them)"},
+        {"Read in Sessions", sessionNames(dataIdentifier.readSessionIds, "(not readable)")},
+        {"Read Security Levels",
+         isReadable(dataIdentifier) ? securityLevelNames(dataIdentifier.readSecurityLevelIds) : QString()},
+        {"Write in Sessions", sessionNames(dataIdentifier.writeSessionIds, "(not writable)")},
+        {"Write Security Levels",
+         isWritable(dataIdentifier) ? securityLevelNames(dataIdentifier.writeSecurityLevelIds) : QString()},
         {"Comment", dataIdentifier.comment},
     });
 

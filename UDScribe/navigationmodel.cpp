@@ -105,25 +105,84 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
         endRemoveRows();
     });
 
+    // A DID also appears under 0x22 if it can be read, and under 0x2E if it can be written.
     connect(m_database, &Database::dataIdentifierAboutToBeAdded, this, [this](int index) {
         beginInsertRows(categoryIndex(DataIdentifiers), index, index);
     });
     connect(m_database, &Database::dataIdentifierAdded, this, [this] {
         endInsertRows();
+        updateAccessDataIdentifiers();
     });
     connect(m_database, &Database::dataIdentifierChanged, this, [this](int id) {
         const QModelIndex changed = index(m_database->indexOfDataIdentifier(id), 0, categoryIndex(DataIdentifiers));
         emit dataChanged(changed, changed);
+        updateAccessDataIdentifiers();
     });
     connect(m_database, &Database::dataIdentifierAboutToBeRemoved, this, [this](int index) {
         beginRemoveRows(categoryIndex(DataIdentifiers), index, index);
     });
     connect(m_database, &Database::dataIdentifierRemoved, this, [this] {
         endRemoveRows();
+        updateAccessDataIdentifiers();
     });
 
     connect(m_database, &Database::aboutToBeReset, this, &NavigationModel::beginResetModel);
-    connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);
+    connect(m_database, &Database::wasReset, this, [this] {
+        m_readDataIdentifierIds = dataIdentifiersWith(DidAccess::Read);
+        m_writeDataIdentifierIds = dataIdentifiersWith(DidAccess::Write);
+        endResetModel();
+    });
+}
+
+QVector<int> NavigationModel::dataIdentifiersWith(DidAccess access) const
+{
+    QVector<int> ids;
+    for (const DataIdentifier &dataIdentifier : m_database->allDataIdentifiers()) {
+        if (hasAccess(dataIdentifier, access))
+            ids.append(dataIdentifier.id);
+    }
+    return ids;
+}
+
+QVector<int> &NavigationModel::cachedDataIdentifiers(DidAccess access)
+{
+    return access == DidAccess::Read ? m_readDataIdentifierIds : m_writeDataIdentifierIds;
+}
+
+const QVector<int> &NavigationModel::cachedDataIdentifiers(DidAccess access) const
+{
+    return access == DidAccess::Read ? m_readDataIdentifierIds : m_writeDataIdentifierIds;
+}
+
+void NavigationModel::updateAccessDataIdentifiers()
+{
+    updateDataIdentifiers(DidAccess::Read);
+    updateDataIdentifiers(DidAccess::Write);
+}
+
+void NavigationModel::updateDataIdentifiers(DidAccess access)
+{
+    const QModelIndex heading = categoryIndex(access == DidAccess::Read ? ReadDataByIdentifier : WriteDataByIdentifier);
+    QVector<int> &cached = cachedDataIdentifiers(access);
+    const QVector<int> current = dataIdentifiersWith(access);
+    if (current == cached) {
+        // Same DIDs; a name or number may still have changed.
+        if (!current.isEmpty())
+            emit dataChanged(index(0, 0, heading), index(current.size() - 1, 0, heading));
+        return;
+    }
+
+    // Simplest correct way to tell the views: remove all old rows, insert all new ones.
+    if (!cached.isEmpty()) {
+        beginRemoveRows(heading, 0, cached.size() - 1);
+        cached.clear();
+        endRemoveRows();
+    }
+    if (!current.isEmpty()) {
+        beginInsertRows(heading, 0, current.size() - 1);
+        cached = current;
+        endInsertRows();
+    }
 }
 
 QModelIndex NavigationModel::categoryIndex(Category category) const
@@ -158,6 +217,8 @@ int NavigationModel::rowCount(const QModelIndex &parent) const
     switch (parent.row()) {
     case DiagnosticSessionControl: return m_database->allSessions().size();
     case EcuReset:                 return m_database->allResetTypes().size();
+    case ReadDataByIdentifier:     return m_readDataIdentifierIds.size();
+    case WriteDataByIdentifier:    return m_writeDataIdentifierIds.size();
     case SecurityAccess:           return m_database->allSecurityLevels().size();
     case ValueTables:              return m_database->allValueTables().size();
     case DataTypes:                return m_database->allDataTypes().size();
@@ -179,10 +240,12 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     // Icons are compiled into the program from resources.qrc.
     if (isHeading(index)) {
         static const char *const headings[CategoryCount] = {
-            "Network", "0x10 DiagnosticSessionControl", "0x11 ECUReset", "0x27 SecurityAccess", "Value Tables",
+            "Network", "0x10 DiagnosticSessionControl", "0x11 ECUReset", "0x22 ReadDataByIdentifier",
+            "0x27 SecurityAccess", "0x2E WriteDataByIdentifier", "Value Tables",
             "Data Types", "Data Identifiers"};
         static const char *const icons[CategoryCount] = {
-            ":/icons/network.svg", ":/icons/session.svg", ":/icons/ecureset.svg", ":/icons/securityaccess.svg",
+            ":/icons/network.svg", ":/icons/session.svg", ":/icons/ecureset.svg", ":/icons/dataidentifiers.svg",
+            ":/icons/securityaccess.svg", ":/icons/dataidentifiers.svg",
             ":/icons/valuetables.svg", ":/icons/datatypes.svg", ":/icons/dataidentifiers.svg"};
         switch (role) {
         case Qt::DisplayRole:    return QString(headings[index.row()]);
@@ -209,6 +272,15 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         const ResetType &resetType = m_database->allResetTypes().at(index.row());
         name = subFunctionToText(resetType.resetType) + ' ' + resetType.name; icon = ":/icons/ecureset.svg"; kind = ResetTypeItem;
         id = resetType.id;
+        break;
+    }
+    case ReadDataByIdentifier:
+    case WriteDataByIdentifier: {
+        const bool read = int(index.internalId() - 1) == ReadDataByIdentifier;
+        id = cachedDataIdentifiers(read ? DidAccess::Read : DidAccess::Write).value(index.row());
+        const DataIdentifier *dataIdentifier = m_database->findDataIdentifier(id);
+        name = dataIdentifier ? didToText(dataIdentifier->did) + ' ' + dataIdentifier->name : QString();
+        icon = ":/icons/dataidentifiers.svg"; kind = read ? ReadDataIdentifierItem : WriteDataIdentifierItem;
         break;
     }
     case SecurityAccess: {

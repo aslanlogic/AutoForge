@@ -51,7 +51,7 @@ public:
     // reset type or DID still uses are not deleted: returns false then, and also if
     // there is no session with this id.
     bool removeSession(int id);
-    // Names of the security levels / reset types / DIDs that use this session.
+    // Names of the security levels / reset types / DIDs (to read or write) that use this session.
     QStringList securityLevelsUsingSession(int id) const;
     QStringList resetTypesUsingSession(int id) const;
     QStringList dataIdentifiersUsingSession(int id) const;
@@ -71,7 +71,7 @@ public:
     // Deletes the security level. One that a reset type or DID still needs is not
     // deleted: returns false then, and also if there is none with this id.
     bool removeSecurityLevel(int id);
-    // Names of the reset types / DIDs that this security level allows.
+    // Names of the reset types / DIDs (to read or write) that this security level allows.
     QStringList resetTypesUsingSecurityLevel(int id) const;
     QStringList dataIdentifiersUsingSecurityLevel(int id) const;
 

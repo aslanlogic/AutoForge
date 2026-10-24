@@ -2,6 +2,7 @@
 #include "dataidentifierdialog.h"
 #include "dataidentifierpropertieswidget.h"
 #include "dataidentifiertablemodel.h"
+#include "accessdialog.h"
 #include "datatypedialog.h"
 #include "datatypepropertieswidget.h"
 #include "datatypetablemodel.h"
@@ -27,6 +28,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -38,6 +40,31 @@
 #include <QTreeView>
 
 namespace {
+
+// The rows of a DataIdentifierTableModel whose DID can be read (0x22 ReadDataByIdentifier)
+// or written (0x2E WriteDataByIdentifier). It filters again whenever a DID changes
+// (QSortFilterProxyModel's dynamic filtering).
+class DataIdentifierAccessFilter : public QSortFilterProxyModel
+{
+public:
+    DataIdentifierAccessFilter(const Database *database, DidAccess access, QObject *parent)
+        : QSortFilterProxyModel(parent), m_database(database), m_access(access) {}
+
+protected:
+    bool filterAcceptsRow(int sourceRow, const QModelIndex &) const override
+    {
+        return hasAccess(m_database->allDataIdentifiers().at(sourceRow), m_access);
+    }
+
+private:
+    const Database *m_database = nullptr;
+    DidAccess m_access;
+};
+
+// "0x22" / "read" etc.: the words for an access in messages.
+QString serviceOf(DidAccess access) { return access == DidAccess::Read ? "0x22" : "0x2E"; }
+QString verbOf(DidAccess access) { return access == DidAccess::Read ? "read" : "written"; }
+QString adjectiveOf(DidAccess access) { return access == DidAccess::Read ? "readable" : "writable"; }
 
 // The sessionType sub-functions of all sessions except the one with this id.
 QVector<quint8> sessionTypesUsedByOthers(const Database &database, int id)
@@ -176,6 +203,12 @@ void MainWindow::setupLayout()
     m_dataIdentifierTableModel = new DataIdentifierTableModel(m_database, this);
     m_dataIdentifierTable = createSortableTable(m_dataIdentifierTableModel, DataIdentifierTableModel::SortRole);
     m_dataIdentifierProperties = new DataIdentifierPropertiesWidget;
+    auto *readableFilter = new DataIdentifierAccessFilter(m_database, DidAccess::Read, this);
+    readableFilter->setSourceModel(m_dataIdentifierTableModel);
+    m_readDataIdentifierTable = createSortableTable(readableFilter, DataIdentifierTableModel::SortRole);
+    auto *writableFilter = new DataIdentifierAccessFilter(m_database, DidAccess::Write, this);
+    writableFilter->setSourceModel(m_dataIdentifierTableModel);
+    m_writeDataIdentifierTable = createSortableTable(writableFilter, DataIdentifierTableModel::SortRole);
     m_rightPane->addWidget(m_emptyPage);
     m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_sessionTable);
@@ -189,6 +222,8 @@ void MainWindow::setupLayout()
     m_rightPane->addWidget(m_dataTypeTable);
     m_rightPane->addWidget(m_dataTypeProperties);
     m_rightPane->addWidget(m_dataIdentifierTable);
+    m_rightPane->addWidget(m_readDataIdentifierTable);
+    m_rightPane->addWidget(m_writeDataIdentifierTable);
     m_rightPane->addWidget(m_dataIdentifierProperties);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
@@ -289,6 +324,10 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSession);
         else if (index.row() == NavigationModel::EcuReset)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewResetType);
+        else if (index.row() == NavigationModel::ReadDataByIdentifier)
+            menu.addAction(newIcon, "Add...", this, [this] { addAccessDataIdentifier(DidAccess::Read); });
+        else if (index.row() == NavigationModel::WriteDataByIdentifier)
+            menu.addAction(newIcon, "Add...", this, [this] { addAccessDataIdentifier(DidAccess::Write); });
         else if (index.row() == NavigationModel::SecurityAccess)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSecurityLevel);
         else if (index.row() == NavigationModel::ValueTables)
@@ -309,6 +348,10 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteDataType(id); });
     } else if (kind == NavigationModel::DataIdentifierItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteDataIdentifier(id); });
+    } else if (kind == NavigationModel::ReadDataIdentifierItem) {
+        menu.addAction(deleteIcon, "Remove", this, [this, id] { removeAccess(id, DidAccess::Read); });
+    } else if (kind == NavigationModel::WriteDataIdentifierItem) {
+        menu.addAction(deleteIcon, "Remove", this, [this, id] { removeAccess(id, DidAccess::Write); });
     }
 
     if (!menu.isEmpty())
@@ -341,6 +384,12 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
     case NavigationModel::DataIdentifierItem:
         editDataIdentifier(id);
         break;
+    case NavigationModel::ReadDataIdentifierItem:
+        editAccess(id, DidAccess::Read);
+        break;
+    case NavigationModel::WriteDataIdentifierItem:
+        editAccess(id, DidAccess::Write);
+        break;
     }
 }
 
@@ -366,6 +415,14 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
         }
         if (current.row() == NavigationModel::EcuReset) {
             m_rightPane->setCurrentWidget(m_resetTypeTable);
+            return;
+        }
+        if (current.row() == NavigationModel::ReadDataByIdentifier) {
+            m_rightPane->setCurrentWidget(m_readDataIdentifierTable);
+            return;
+        }
+        if (current.row() == NavigationModel::WriteDataByIdentifier) {
+            m_rightPane->setCurrentWidget(m_writeDataIdentifierTable);
             return;
         }
         if (current.row() == NavigationModel::SecurityAccess) {
@@ -406,6 +463,8 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
         refreshDataTypeProperties();
         return;
     case NavigationModel::DataIdentifierItem:
+    case NavigationModel::ReadDataIdentifierItem:
+    case NavigationModel::WriteDataIdentifierItem:
         m_shownDataIdentifierId = current.data(NavigationModel::ObjectIdRole).toInt();
         refreshDataIdentifierProperties();
         return;
@@ -673,8 +732,8 @@ void MainWindow::createNewDataIdentifier()
         }
     }
 
-    DataIdentifierDialog dialog(newDataIdentifier, existingNames, usedDids, m_database->allDataTypes(),
-                                m_database->allSessions(), m_database->allSecurityLevels(), this);
+    // Not readable or writable yet: that is set under 0x22 and 0x2E.
+    DataIdentifierDialog dialog(newDataIdentifier, existingNames, usedDids, m_database->allDataTypes(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
@@ -692,12 +751,85 @@ void MainWindow::editDataIdentifier(int id)
     otherNames.removeOne(dataIdentifier.name);
 
     DataIdentifierDialog dialog(dataIdentifier, otherNames, didsUsedByOthers(*m_database, id),
-                                m_database->allDataTypes(), m_database->allSessions(),
-                                m_database->allSecurityLevels(), this);
+                                m_database->allDataTypes(), this);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
     m_database->updateDataIdentifier(dialog.dataIdentifier());
+}
+
+void MainWindow::addAccessDataIdentifier(DidAccess access)
+{
+    // Offer the DIDs that do not have this access yet.
+    QStringList labels;
+    QHash<QString, int> idByLabel;
+    for (const DataIdentifier &dataIdentifier : m_database->allDataIdentifiers()) {
+        if (hasAccess(dataIdentifier, access))
+            continue;
+        const QString label = didToText(dataIdentifier.did) + ' ' + dataIdentifier.name;
+        labels << label;
+        idByLabel.insert(label, dataIdentifier.id);
+    }
+    const QString title = QString("Add DID to %1").arg(serviceOf(access));
+    if (labels.isEmpty()) {
+        QMessageBox::information(this, title, QString("Every DID can be %1 already. Create new DIDs under "
+                                                      "'Data Identifiers' first.").arg(verbOf(access)));
+        return;
+    }
+
+    bool ok = false;
+    const QString label = QInputDialog::getItem(this, title, QString("DID to make %1:").arg(adjectiveOf(access)), labels,
+                                                0, false, &ok);
+    if (ok)
+        editAccess(idByLabel.value(label), access);
+}
+
+void MainWindow::editAccess(int id, DidAccess access)
+{
+    const DataIdentifier *stored = m_database->findDataIdentifier(id);
+    if (!stored)
+        return;
+    DataIdentifier dataIdentifier = *stored; // copy: the pointer is only valid until the next change
+    QVector<int> &sessionIds = access == DidAccess::Read ? dataIdentifier.readSessionIds : dataIdentifier.writeSessionIds;
+    QVector<int> &securityLevelIds = access == DidAccess::Read ? dataIdentifier.readSecurityLevelIds
+                                                               : dataIdentifier.writeSecurityLevelIds;
+
+    const QString title = QString("%1 Access of DID '%2 %3'")
+                              .arg(access == DidAccess::Read ? "Read" : "Write", didToText(dataIdentifier.did),
+                                   dataIdentifier.name);
+    AccessDialog dialog(title, verbOf(access), m_database->allSessions(), m_database->allSecurityLevels(), sessionIds,
+                        securityLevelIds, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    sessionIds = dialog.sessionIds();
+    securityLevelIds = dialog.securityLevelIds();
+    m_database->updateDataIdentifier(dataIdentifier);
+}
+
+void MainWindow::removeAccess(int id, DidAccess access)
+{
+    const DataIdentifier *stored = m_database->findDataIdentifier(id);
+    if (!stored)
+        return;
+    DataIdentifier dataIdentifier = *stored; // copy: the pointer is only valid until the next change
+
+    const QString question = QString("Make the DID '%1 %2' not %3 by %4?\n\n"
+                                     "The DID itself stays under 'Data Identifiers'.")
+                                 .arg(didToText(dataIdentifier.did), dataIdentifier.name, adjectiveOf(access),
+                                      serviceOf(access));
+    if (QMessageBox::question(this, QString("Remove DID from %1").arg(serviceOf(access)), question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+        return;
+
+    if (access == DidAccess::Read) {
+        dataIdentifier.readSessionIds.clear();
+        dataIdentifier.readSecurityLevelIds.clear();
+    } else {
+        dataIdentifier.writeSessionIds.clear();
+        dataIdentifier.writeSecurityLevelIds.clear();
+    }
+    m_database->updateDataIdentifier(dataIdentifier);
 }
 
 void MainWindow::deleteDataIdentifier(int id)

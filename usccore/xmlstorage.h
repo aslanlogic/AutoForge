@@ -32,6 +32,8 @@ class Database;
 //         <DataType name="FR" dataType="Pressure" startBit="8"/>      data type may appear twice)
 //         <ReadSession name="Extended"/>                (by session name; one per session)
 //         <ReadSecurityLevel name="L1"/>                (by name; any of them, none = no security)
+//         <WriteSession name="Extended"/>               (the same for writing; no WriteSession =
+//         <WriteSecurityLevel name="L1"/>                not writable, no ReadSession = not readable)
 //         <Comment>Pressure of all four tyres</Comment>
 //       </DataIdentifier>
 //     </DataIdentifiers>

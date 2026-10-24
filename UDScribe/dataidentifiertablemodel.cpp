@@ -26,8 +26,11 @@ DataIdentifierTableModel::DataIdentifierTableModel(Database *database, QObject *
 
     // Three columns show names of other objects.
     connect(m_database, &Database::dataTypeChanged, this, [this] { namesChanged(DataTypes); });
-    connect(m_database, &Database::sessionChanged, this, [this] { namesChanged(ReadSessions); });
-    connect(m_database, &Database::securityLevelChanged, this, [this] { namesChanged(ReadSecurityLevels); });
+    connect(m_database, &Database::sessionChanged, this, [this] { namesChanged(ReadSessions); namesChanged(WriteSessions); });
+    connect(m_database, &Database::securityLevelChanged, this, [this] {
+        namesChanged(ReadSecurityLevels);
+        namesChanged(WriteSecurityLevels);
+    });
 
     connect(m_database, &Database::aboutToBeReset, this, &DataIdentifierTableModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &DataIdentifierTableModel::endResetModel);
@@ -37,6 +40,27 @@ void DataIdentifierTableModel::namesChanged(int column)
 {
     if (rowCount() > 0)
         emit dataChanged(index(0, column), index(rowCount() - 1, column));
+}
+
+QString DataIdentifierTableModel::sessionNames(const QVector<int> &sessionIds, const QString &none) const
+{
+    QStringList names;
+    for (int sessionId : sessionIds) {
+        if (const Session *session = m_database->findSession(sessionId))
+            names << subFunctionToText(session->sessionType) + ' ' + session->name;
+    }
+    return names.isEmpty() ? none : names.join(", ");
+}
+
+QString DataIdentifierTableModel::securityLevelNames(const QVector<int> &securityLevelIds) const
+{
+    // Any of them allows it; none = no security needed.
+    QStringList names;
+    for (int securityLevelId : securityLevelIds) {
+        if (const SecurityLevel *securityLevel = m_database->findSecurityLevel(securityLevelId))
+            names << subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
+    }
+    return names.isEmpty() ? QString("(none needed)") : names.join(", ");
 }
 
 int DataIdentifierTableModel::rowCount(const QModelIndex &parent) const
@@ -76,23 +100,10 @@ QVariant DataIdentifierTableModel::data(const QModelIndex &index, int role) cons
         }
         return names.join(", ");
     }
-    case ReadSessions: {
-        QStringList names;
-        for (int sessionId : dataIdentifier.readSessionIds) {
-            if (const Session *session = m_database->findSession(sessionId))
-                names << subFunctionToText(session->sessionType) + ' ' + session->name;
-        }
-        return names.join(", ");
-    }
-    case ReadSecurityLevels: {
-        // Any of them allows reading; none = no security needed.
-        QStringList names;
-        for (int securityLevelId : dataIdentifier.readSecurityLevelIds) {
-            if (const SecurityLevel *securityLevel = m_database->findSecurityLevel(securityLevelId))
-                names << subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
-        }
-        return names.isEmpty() ? QString("(none needed)") : names.join(", ");
-    }
+    case ReadSessions:        return sessionNames(dataIdentifier.readSessionIds, "(not readable)");
+    case ReadSecurityLevels:  return isReadable(dataIdentifier) ? securityLevelNames(dataIdentifier.readSecurityLevelIds) : QString();
+    case WriteSessions:       return sessionNames(dataIdentifier.writeSessionIds, "(not writable)");
+    case WriteSecurityLevels: return isWritable(dataIdentifier) ? securityLevelNames(dataIdentifier.writeSecurityLevelIds) : QString();
     case Comment:
         return dataIdentifier.comment;
     }
@@ -105,6 +116,7 @@ QVariant DataIdentifierTableModel::headerData(int section, Qt::Orientation orien
         return QVariant();
 
     static const char *const headers[ColumnCount] = {
-        "Name", "DID", "Length [Byte]", "Data Types", "Read in Sessions", "Read Security Levels", "Comment"};
+        "Name", "DID", "Length [Byte]", "Data Types", "Read in Sessions", "Read Security Levels",
+        "Write in Sessions", "Write Security Levels", "Comment"};
     return QString(headers[section]);
 }

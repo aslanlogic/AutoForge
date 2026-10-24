@@ -8,7 +8,6 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -40,31 +39,11 @@ bool textToDid(const QString &text, quint16 *did)
     return true;
 }
 
-// The ids of the checked rows of a list made by addCheckableRow().
-QVector<int> checkedIds(const QListWidget *list)
-{
-    QVector<int> ids;
-    for (int row = 0; row < list->count(); ++row) {
-        const QListWidgetItem *item = list->item(row);
-        if (item->checkState() == Qt::Checked)
-            ids.append(item->data(Qt::UserRole).toInt());
-    }
-    return ids;
-}
-
-void addCheckableRow(QListWidget *list, const QString &text, int id, bool checked)
-{
-    auto *item = new QListWidgetItem(text, list);
-    item->setData(Qt::UserRole, id);
-    item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-}
-
 } // namespace
 
 DataIdentifierDialog::DataIdentifierDialog(const DataIdentifier &dataIdentifier, const QStringList &existingNames,
                                            const QVector<quint16> &usedDids, const QVector<DataType> &allDataTypes,
-                                           const QVector<Session> &sessions,
-                                           const QVector<SecurityLevel> &securityLevels, QWidget *parent)
+                                           QWidget *parent)
     : QDialog(parent)
     , m_dataIdentifier(dataIdentifier)
     , m_existingNames(existingNames)
@@ -80,7 +59,6 @@ DataIdentifierDialog::DataIdentifierDialog(const DataIdentifier &dataIdentifier,
     m_tabs->addTab(createDefinitionTab(), "Definition");
     m_tabs->addTab(createDataTypesTab(), "Data Types");
     m_tabs->addTab(createLayoutTab(), "Layout");
-    m_tabs->addTab(createReadAccessTab(sessions, securityLevels), "Read Access");
     m_tabs->addTab(createCommentTab(), "Comment");
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -111,8 +89,6 @@ DataIdentifier DataIdentifierDialog::dataIdentifier() const
     textToDid(m_didEdit->text(), &dataIdentifier.did);
     dataIdentifier.length = m_lengthSpin->value();
     dataIdentifier.mappings = m_mappings;
-    dataIdentifier.readSessionIds = checkedIds(m_sessionList);
-    dataIdentifier.readSecurityLevelIds = checkedIds(m_securityLevelList);
     dataIdentifier.comment = m_commentEdit->toPlainText();
     return dataIdentifier;
 }
@@ -145,12 +121,6 @@ void DataIdentifierDialog::accept()
         badField->setFocus();
         if (auto *edit = qobject_cast<QLineEdit *>(badField))
             edit->selectAll();
-        return;
-    }
-
-    if (checkedIds(m_sessionList).isEmpty()) {
-        QMessageBox::warning(this, windowTitle(), "Please choose at least one session the DID can be read in.");
-        m_tabs->setCurrentWidget(m_readAccessTab);
         return;
     }
 
@@ -237,32 +207,6 @@ QWidget *DataIdentifierDialog::createLayoutTab()
     scrollArea->setWidget(m_layoutWidget);
     scrollArea->setWidgetResizable(false);
     return scrollArea;
-}
-
-QWidget *DataIdentifierDialog::createReadAccessTab(const QVector<Session> &sessions,
-                                                    const QVector<SecurityLevel> &securityLevels)
-{
-    auto *tab = new QWidget;
-    m_readAccessTab = tab;
-
-    m_sessionList = new QListWidget;
-    for (const Session &session : sessions) {
-        addCheckableRow(m_sessionList, subFunctionToText(session.sessionType) + ' ' + session.name, session.id,
-                        m_dataIdentifier.readSessionIds.contains(session.id));
-    }
-    m_securityLevelList = new QListWidget;
-    for (const SecurityLevel &securityLevel : securityLevels) {
-        addCheckableRow(m_securityLevelList, subFunctionToText(securityLevel.requestSeed) + ' ' + securityLevel.name,
-                        securityLevel.id, m_dataIdentifier.readSecurityLevelIds.contains(securityLevel.id));
-    }
-
-    auto *layout = new QVBoxLayout(tab);
-    layout->addWidget(new QLabel("Sessions the DID can be read in (at least one):"));
-    layout->addWidget(m_sessionList);
-    layout->addWidget(new QLabel("Security levels that allow reading (any of them; none = no security needed):"));
-    layout->addWidget(m_securityLevelList);
-
-    return tab;
 }
 
 QWidget *DataIdentifierDialog::createCommentTab()

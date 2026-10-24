@@ -2,8 +2,6 @@
 #define DATAIDENTIFIERDIALOG_H
 
 #include "usccore/dataidentifier.h"
-#include "usccore/securitylevel.h"
-#include "usccore/session.h"
 
 #include <QDialog>
 #include <QHash>
@@ -13,15 +11,15 @@
 class DataIdentifierLayoutWidget;
 class QLineEdit;
 class QTableWidget;
-class QListWidget;
 class QPlainTextEdit;
 class QSpinBox;
 class QTabWidget;
 
 using namespace usc;
 
-// Asks for all properties of a DID: its number, name and length, who may read
-// it, and (on the other tabs) the data types placed in its data record.
+// Asks for the properties of a DID: its number, name and length, and the data types
+// placed in its data record. Who may read it is set under 0x22 ReadDataByIdentifier
+// (AccessDialog); this dialog keeps it as it is.
 class DataIdentifierDialog : public QDialog
 {
     Q_OBJECT
@@ -30,10 +28,8 @@ public:
     // existingNames: names already taken by other DIDs; OK is refused for these.
     // usedDids: DID numbers of the other DIDs; OK is refused for these.
     // allDataTypes: the data types that can be placed in the DID.
-    // sessions, securityLevels: all of them, offered for read access.
     DataIdentifierDialog(const DataIdentifier &dataIdentifier, const QStringList &existingNames,
                          const QVector<quint16> &usedDids, const QVector<DataType> &allDataTypes,
-                         const QVector<Session> &sessions, const QVector<SecurityLevel> &securityLevels,
                          QWidget *parent = nullptr);
 
     DataIdentifier dataIdentifier() const;
@@ -51,7 +47,6 @@ private:
     QWidget *createDefinitionTab();
     QWidget *createDataTypesTab();
     QWidget *createLayoutTab();
-    QWidget *createReadAccessTab(const QVector<Session> &sessions, const QVector<SecurityLevel> &securityLevels);
     QWidget *createCommentTab();
     void refreshDataTypes(); // redraws the Data Types and Layout tabs from m_mappings
     int findFreeStartBit(const DataType &dataType) const; // -1 if it does not fit anywhere
@@ -74,11 +69,6 @@ private:
 
     // Layout tab
     DataIdentifierLayoutWidget *m_layoutWidget = nullptr;
-
-    // Read Access tab
-    QWidget *m_readAccessTab = nullptr;
-    QListWidget *m_sessionList = nullptr;       // one checkable row per session; data = Session::id
-    QListWidget *m_securityLevelList = nullptr; // one checkable row per level; data = SecurityLevel::id
 
     // Comment tab
     QPlainTextEdit *m_commentEdit = nullptr;

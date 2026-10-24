@@ -21,7 +21,7 @@ struct DataTypeMapping
 
 // One data identifier (DID): a 2-byte number that names a fixed-length data
 // record, made of data types placed at bit positions. ReadDataByIdentifier (0x22)
-// reads it; WriteDataByIdentifier (0x2E) will write it.
+// reads it, WriteDataByIdentifier (0x2E) writes it.
 struct DataIdentifier
 {
     int id = 0; // unique, assigned by Database when added; 0 = not added yet
@@ -30,11 +30,15 @@ struct DataIdentifier
     int length = 1; // data record length in bytes, 1..MaxDataRecordLength
     QVector<DataTypeMapping> mappings; // the data types it carries; must fit and not overlap
     // Session::id of every session the DID can be read in. In any other session
-    // the ECU answers NRC 0x31 (requestOutOfRange).
+    // the ECU answers NRC 0x31 (requestOutOfRange). Empty = not readable at all.
     QVector<int> readSessionIds;
     // SecurityLevel::id of the levels that allow reading: any of them unlocked
     // (otherwise NRC 0x33). Empty = no security needed.
     QVector<int> readSecurityLevelIds;
+    // The same for writing: sessions it can be written in (empty = not writable at
+    // all) and the levels that allow writing (any of them; empty = no security).
+    QVector<int> writeSessionIds;
+    QVector<int> writeSecurityLevelIds;
     QString comment;
 };
 
@@ -48,7 +52,28 @@ inline bool operator==(const DataIdentifier &a, const DataIdentifier &b)
 {
     return a.id == b.id && a.name == b.name && a.did == b.did && a.length == b.length
         && a.mappings == b.mappings && a.readSessionIds == b.readSessionIds
-        && a.readSecurityLevelIds == b.readSecurityLevelIds && a.comment == b.comment;
+        && a.readSecurityLevelIds == b.readSecurityLevelIds && a.writeSessionIds == b.writeSessionIds
+        && a.writeSecurityLevelIds == b.writeSecurityLevelIds && a.comment == b.comment;
+}
+
+// Whether ReadDataByIdentifier (0x22) can read the DID in some session.
+inline bool isReadable(const DataIdentifier &dataIdentifier)
+{
+    return !dataIdentifier.readSessionIds.isEmpty();
+}
+
+// Whether WriteDataByIdentifier (0x2E) can write the DID in some session.
+inline bool isWritable(const DataIdentifier &dataIdentifier)
+{
+    return !dataIdentifier.writeSessionIds.isEmpty();
+}
+
+// Reading a DID with ReadDataByIdentifier (0x22) or writing it with WriteDataByIdentifier (0x2E).
+enum class DidAccess { Read, Write };
+
+inline bool hasAccess(const DataIdentifier &dataIdentifier, DidAccess access)
+{
+    return access == DidAccess::Read ? isReadable(dataIdentifier) : isWritable(dataIdentifier);
 }
 
 // DIDs are shown and saved as four-digit hex: "0xF190".

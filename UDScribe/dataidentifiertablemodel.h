@@ -16,7 +16,10 @@ class DataIdentifierTableModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    enum Column { Name, Did, Length, DataTypes, ReadSessions, ReadSecurityLevels, Comment, ColumnCount };
+    enum Column {
+        Name, Did, Length, DataTypes, ReadSessions, ReadSecurityLevels, WriteSessions, WriteSecurityLevels, Comment,
+        ColumnCount
+    };
 
     // Value to sort by: numbers as numbers (so 0x0100 comes before 0xF190).
     static constexpr int SortRole = Qt::UserRole + 1;
@@ -31,6 +34,10 @@ public:
 
 private:
     void namesChanged(int column); // a data type, session or security level was renamed
+    // "0x03 Extended, ..." or `none` if there are none.
+    QString sessionNames(const QVector<int> &sessionIds, const QString &none) const;
+    // "0x01 L1, ..." or "(none needed)".
+    QString securityLevelNames(const QVector<int> &securityLevelIds) const;
 
     Database *m_database = nullptr;
 };

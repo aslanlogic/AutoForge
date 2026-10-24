@@ -8,6 +8,7 @@ TARGET = UDScribe
 TEMPLATE = app
 
 SOURCES += \
+    accessdialog.cpp \
     dataidentifierdialog.cpp \
     dataidentifierlayoutwidget.cpp \
     dataidentifierpropertieswidget.cpp \
@@ -34,6 +35,7 @@ SOURCES += \
     valuetabletablemodel.cpp
 
 HEADERS += \
+    accessdialog.h \
     dataidentifierdialog.h \
     dataidentifierlayoutwidget.h \
     dataidentifierpropertieswidget.h \
