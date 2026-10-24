@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "navigationmodel.h"
+#include "networkdialog.h"
+#include "networkpropertieswidget.h"
 #include "securityleveldialog.h"
 #include "securitylevelpropertieswidget.h"
 #include "securityleveltablemodel.h"
@@ -48,6 +50,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Any edit marks the document as unsaved: Qt then shows '*' in place of "[*]" in the title.
     // Opening a file (Database::wasReset) is not an edit, so it is not connected here.
+    connect(m_database, &Database::networkChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelRemoved, this, [this] { setWindowModified(true); });
@@ -93,14 +96,17 @@ void MainWindow::setupLayout()
     m_emptyPage = new QWidget;
     m_securityLevelTableModel = new SecurityLevelTableModel(m_database, this);
     m_securityLevelTable = createSortableTable(m_securityLevelTableModel, SecurityLevelTableModel::SortRole);
+    m_networkProperties = new NetworkPropertiesWidget;
     m_securityLevelProperties = new SecurityLevelPropertiesWidget;
     m_rightPane->addWidget(m_emptyPage);
+    m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_securityLevelTable);
     m_rightPane->addWidget(m_securityLevelProperties);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
 
-    // Keep the shown security level up to date. The table updates itself through its model.
+    // Keep the shown network and security level up to date. The table updates itself through its model.
+    connect(m_database, &Database::networkChanged, this, &MainWindow::refreshNetworkProperties);
     connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshSecurityLevelProperties);
     connect(m_database, &Database::securityLevelRemoved, this, &MainWindow::refreshSecurityLevelProperties);
     // New and Open renumber all ids and leave nothing selected in the tree: start empty.
@@ -161,9 +167,9 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
     const QIcon newIcon = QIcon::fromTheme("document-new", style()->standardIcon(QStyle::SP_FileIcon));
     const QIcon deleteIcon = QIcon::fromTheme("edit-delete", style()->standardIcon(QStyle::SP_TrashIcon));
 
-    // Services offer "Add...", the items under them offer "Delete".
+    // Service headings offer "Add...", the items under them offer "Delete".
     QMenu menu(this);
-    if (kind == NavigationModel::ServiceItem) {
+    if (kind == NavigationModel::Heading) {
         if (index.row() == NavigationModel::SecurityAccess)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSecurityLevel);
     } else if (kind == NavigationModel::SecurityLevelItem) {
@@ -178,6 +184,10 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
 {
     const int id = index.data(NavigationModel::ObjectIdRole).toInt();
     switch (index.data(NavigationModel::ItemKindRole).toInt()) {
+    case NavigationModel::Heading:
+        if (index.row() == NavigationModel::Network)
+            editNetwork();
+        break;
     case NavigationModel::SecurityLevelItem:
         editSecurityLevel(id);
         break;
@@ -189,7 +199,12 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
     // A service shows the table of all its items, an item shows its own properties.
     m_shownSecurityLevelId = 0;
     switch (current.data(NavigationModel::ItemKindRole).toInt()) {
-    case NavigationModel::ServiceItem:
+    case NavigationModel::Heading:
+        if (current.row() == NavigationModel::Network) {
+            m_rightPane->setCurrentWidget(m_networkProperties);
+            refreshNetworkProperties();
+            return;
+        }
         if (current.row() == NavigationModel::SecurityAccess) {
             m_rightPane->setCurrentWidget(m_securityLevelTable);
             return;
@@ -215,6 +230,19 @@ void MainWindow::refreshSecurityLevelProperties()
         m_shownSecurityLevelId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     }
+}
+
+void MainWindow::refreshNetworkProperties()
+{
+    if (m_rightPane->currentWidget() == m_networkProperties)
+        m_networkProperties->showNetwork(*m_database, m_currentFilePath);
+}
+
+void MainWindow::editNetwork()
+{
+    NetworkDialog dialog(m_database->network(), this);
+    if (dialog.exec() == QDialog::Accepted)
+        m_database->setNetwork(dialog.network());
 }
 
 void MainWindow::createNewSecurityLevel()
@@ -346,6 +374,7 @@ void MainWindow::setCurrentFilePath(const QString &filePath)
     m_currentFilePath = filePath;
     const QString fileName = filePath.isEmpty() ? "Untitled" : QFileInfo(filePath).fileName();
     setWindowTitle(QString("%1[*] - UDScribe").arg(fileName));
+    refreshNetworkProperties(); // the Network view shows the file path
 }
 
 bool MainWindow::maybeSave()

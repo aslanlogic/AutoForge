@@ -9,9 +9,10 @@ class Database;
 
 using namespace usc;
 
-// Tree model for the left pane. Shows a fixed row per UDS service and, under
-// each service, its items taken from the Database.
+// Tree model for the left pane. Shows a fixed heading for the network and one
+// per UDS service and, under each service, its items taken from the Database.
 //
+//   Network
 //   0x27 SecurityAccess
 //     <one row per security level, e.g. "0x01 Extended">
 class NavigationModel : public QAbstractItemModel
@@ -19,11 +20,11 @@ class NavigationModel : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    enum Service { SecurityAccess, ServiceCount };
+    enum Category { Network, SecurityAccess, CategoryCount };
 
     // What a row shows; ask with ItemKindRole.
     enum ItemKind {
-        ServiceItem, // row = Service
+        Heading, // row = Category
         SecurityLevelItem
     };
 
@@ -33,7 +34,7 @@ public:
 
     explicit NavigationModel(Database *database, QObject *parent = nullptr);
 
-    QModelIndex serviceIndex(Service service) const;
+    QModelIndex categoryIndex(Category category) const;
 
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &child) const override;

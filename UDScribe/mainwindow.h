@@ -8,6 +8,7 @@ class Database;
 } // namespace usc
 
 class NavigationModel;
+class NetworkPropertiesWidget;
 class QAbstractItemModel;
 class QSplitter;
 class QStackedWidget;
@@ -43,9 +44,12 @@ private:
     QTableView *createSortableTable(QAbstractItemModel *model, int sortRole);
     // Draws the shown security level again, or the empty page if it no longer exists.
     void refreshSecurityLevelProperties();
+    // Draws the network page again if it is shown.
+    void refreshNetworkProperties();
     void showNavigationContextMenu(const QPoint &pos);
     void onNavigationDoubleClicked(const QModelIndex &index);
     void onCurrentNavigationChanged(const QModelIndex &current);
+    void editNetwork();
     void createNewSecurityLevel();
     void editSecurityLevel(int id);
     void deleteSecurityLevel(int id);
@@ -60,6 +64,7 @@ private:
     QStackedWidget *m_rightPane = nullptr;
     QWidget *m_emptyPage = nullptr;
     QTableView *m_securityLevelTable = nullptr;
+    NetworkPropertiesWidget *m_networkProperties = nullptr;
     SecurityLevelPropertiesWidget *m_securityLevelProperties = nullptr;
     int m_shownSecurityLevelId = 0; // the level on m_securityLevelProperties; 0 = none
 };

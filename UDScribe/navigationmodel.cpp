@@ -8,11 +8,11 @@ using namespace usc;
 // How rows are identified. Every index carries a number (internalId) that is
 // enough to find its parent:
 //
-//   service                0
-//   item under a service   Service + 1   (1 .. ServiceCount)
+//   heading                0
+//   item under a heading   Category + 1   (1 .. CategoryCount)
 namespace {
 
-bool isService(const QModelIndex &index) { return index.internalId() == 0; }
+bool isHeading(const QModelIndex &index) { return index.internalId() == 0; }
 
 } // namespace
 
@@ -21,17 +21,17 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
     , m_database(database)
 {
     connect(m_database, &Database::securityLevelAboutToBeAdded, this, [this](int index) {
-        beginInsertRows(serviceIndex(SecurityAccess), index, index);
+        beginInsertRows(categoryIndex(SecurityAccess), index, index);
     });
     connect(m_database, &Database::securityLevelAdded, this, [this] {
         endInsertRows();
     });
     connect(m_database, &Database::securityLevelChanged, this, [this](int id) {
-        const QModelIndex changed = index(m_database->indexOfSecurityLevel(id), 0, serviceIndex(SecurityAccess));
+        const QModelIndex changed = index(m_database->indexOfSecurityLevel(id), 0, categoryIndex(SecurityAccess));
         emit dataChanged(changed, changed);
     });
     connect(m_database, &Database::securityLevelAboutToBeRemoved, this, [this](int index) {
-        beginRemoveRows(serviceIndex(SecurityAccess), index, index);
+        beginRemoveRows(categoryIndex(SecurityAccess), index, index);
     });
     connect(m_database, &Database::securityLevelRemoved, this, [this] {
         endRemoveRows();
@@ -41,9 +41,9 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
     connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);
 }
 
-QModelIndex NavigationModel::serviceIndex(Service service) const
+QModelIndex NavigationModel::categoryIndex(Category category) const
 {
-    return createIndex(service, 0, quintptr(0));
+    return createIndex(category, 0, quintptr(0));
 }
 
 QModelIndex NavigationModel::index(int row, int column, const QModelIndex &parent) const
@@ -58,16 +58,16 @@ QModelIndex NavigationModel::index(int row, int column, const QModelIndex &paren
 
 QModelIndex NavigationModel::parent(const QModelIndex &child) const
 {
-    if (!child.isValid() || isService(child))
+    if (!child.isValid() || isHeading(child))
         return QModelIndex();
-    return serviceIndex(static_cast<Service>(child.internalId() - 1));
+    return categoryIndex(static_cast<Category>(child.internalId() - 1));
 }
 
 int NavigationModel::rowCount(const QModelIndex &parent) const
 {
     if (!parent.isValid())
-        return ServiceCount;
-    if (parent.column() > 0 || !isService(parent))
+        return CategoryCount;
+    if (parent.column() > 0 || !isHeading(parent))
         return 0;
 
     switch (parent.row()) {
@@ -87,13 +87,13 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         return QVariant();
 
     // Icons are compiled into the program from resources.qrc.
-    if (isService(index)) {
-        static const char *const services[ServiceCount] = {"0x27 SecurityAccess"};
-        static const char *const icons[ServiceCount] = {":/icons/securityaccess.svg"};
+    if (isHeading(index)) {
+        static const char *const headings[CategoryCount] = {"Network", "0x27 SecurityAccess"};
+        static const char *const icons[CategoryCount] = {":/icons/network.svg", ":/icons/securityaccess.svg"};
         switch (role) {
-        case Qt::DisplayRole:    return QString(services[index.row()]);
+        case Qt::DisplayRole:    return QString(headings[index.row()]);
         case Qt::DecorationRole: return QIcon(icons[index.row()]);
-        case ItemKindRole:       return ServiceItem;
+        case ItemKindRole:       return Heading;
         }
         return QVariant();
     }
@@ -101,7 +101,7 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     // Name, icon, kind and id of one row; filled in below.
     QString name;
     QString icon;
-    ItemKind kind = ServiceItem;
+    ItemKind kind = Heading;
     int id = 0;
 
     switch (index.internalId() - 1) {

@@ -11,6 +11,8 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     navigationmodel.cpp \
+    networkdialog.cpp \
+    networkpropertieswidget.cpp \
     securityleveldialog.cpp \
     securitylevelpropertieswidget.cpp \
     securityleveltablemodel.cpp
@@ -18,6 +20,8 @@ SOURCES += \
 HEADERS += \
     mainwindow.h \
     navigationmodel.h \
+    networkdialog.h \
+    networkpropertieswidget.h \
     propertytable.h \
     securityleveldialog.h \
     securitylevelpropertieswidget.h \
