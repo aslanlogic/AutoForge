@@ -15,5 +15,6 @@ SOURCES += \
 
 HEADERS += \
     database.h \
+    network.h \
     securitylevel.h \
     xmlstorage.h

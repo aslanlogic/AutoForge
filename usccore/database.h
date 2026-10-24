@@ -1,6 +1,7 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
+#include "network.h"
 #include "securitylevel.h"
 
 #include <QObject>
@@ -19,6 +20,11 @@ class Database : public QObject
 public:
     explicit Database(QObject *parent = nullptr);
 
+    // The network: its active protocol, that protocol's settings, the
+    // request/response IDs and the response timing.
+    const Network &network() const;
+    void setNetwork(const Network &network);
+
     const QVector<SecurityLevel> &allSecurityLevels() const;
     QStringList securityLevelNames() const;
     // nullptr if no security level has this id. The pointer is only valid until the next change.
@@ -35,9 +41,10 @@ public:
 
     // Throws away everything and stores these instead, each with a new unique id.
     // Used when a file is opened.
-    void replaceAll(QVector<SecurityLevel> newSecurityLevels);
+    void replaceAll(const Network &newNetwork, QVector<SecurityLevel> newSecurityLevels);
 
 signals:
+    void networkChanged();
     // Emitted before and after a security level is inserted at position `index`
     // of allSecurityLevels(). Item models need both to keep their views in sync.
     void securityLevelAboutToBeAdded(int index);
@@ -51,6 +58,7 @@ signals:
     void wasReset();
 
 private:
+    Network m_network;
     QVector<SecurityLevel> m_securityLevels;
     int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };

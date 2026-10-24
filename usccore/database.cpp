@@ -7,6 +7,17 @@ Database::Database(QObject *parent)
 {
 }
 
+const Network &Database::network() const
+{
+    return m_network;
+}
+
+void Database::setNetwork(const Network &network)
+{
+    m_network = network;
+    emit networkChanged();
+}
+
 const QVector<SecurityLevel> &Database::allSecurityLevels() const
 {
     return m_securityLevels;
@@ -67,12 +78,13 @@ bool Database::removeSecurityLevel(int id)
     return true;
 }
 
-void Database::replaceAll(QVector<SecurityLevel> newSecurityLevels)
+void Database::replaceAll(const Network &newNetwork, QVector<SecurityLevel> newSecurityLevels)
 {
     emit aboutToBeReset();
     m_nextId = 1;
     for (SecurityLevel &securityLevel : newSecurityLevels)
         securityLevel.id = m_nextId++;
+    m_network = newNetwork;
     m_securityLevels = newSecurityLevels;
     emit wasReset();
 }

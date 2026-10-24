@@ -286,7 +286,7 @@ void MainWindow::newFile()
     if (!maybeSave())
         return;
 
-    m_database->replaceAll({});
+    m_database->replaceAll(Network(), {});
     setCurrentFilePath(QString());
     setWindowModified(false);
 }

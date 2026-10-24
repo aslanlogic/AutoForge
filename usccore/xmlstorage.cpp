@@ -153,7 +153,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         return false;
     }
 
-    database.replaceAll(loadedSecurityLevels);
+    database.replaceAll(Network(), loadedSecurityLevels);
     return true;
 }
 
