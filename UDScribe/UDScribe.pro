@@ -13,6 +13,9 @@ SOURCES += \
     navigationmodel.cpp \
     networkdialog.cpp \
     networkpropertieswidget.cpp \
+    resettypedialog.cpp \
+    resettypepropertieswidget.cpp \
+    resettypetablemodel.cpp \
     securityleveldialog.cpp \
     securitylevelpropertieswidget.cpp \
     securityleveltablemodel.cpp \
@@ -25,6 +28,9 @@ HEADERS += \
     navigationmodel.h \
     networkdialog.h \
     networkpropertieswidget.h \
+    resettypedialog.h \
+    resettypepropertieswidget.h \
+    resettypetablemodel.h \
     propertytable.h \
     securityleveldialog.h \
     securitylevelpropertieswidget.h \

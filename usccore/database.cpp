@@ -8,6 +8,17 @@ namespace usc {
 
 namespace {
 
+// The ids in `ids` that `newIds` knows, renumbered; the others are dropped.
+QVector<int> renumbered(const QVector<int> &ids, const QHash<int, int> &newIds)
+{
+    QVector<int> result;
+    for (int id : ids) {
+        if (newIds.contains(id))
+            result.append(newIds.value(id));
+    }
+    return result;
+}
+
 Session defaultSession()
 {
     Session session;
@@ -99,7 +110,7 @@ bool Database::removeSession(int id)
 {
     const int index = indexOfSession(id);
     if (index < 0 || m_sessions.at(index).sessionType == DefaultSessionType
-        || !securityLevelsUsingSession(id).isEmpty())
+        || !securityLevelsUsingSession(id).isEmpty() || !resetTypesUsingSession(id).isEmpty())
         return false;
 
     emit sessionAboutToBeRemoved(index);
@@ -114,6 +125,16 @@ QStringList Database::securityLevelsUsingSession(int id) const
     for (const SecurityLevel &securityLevel : m_securityLevels) {
         if (securityLevel.sessionIds.contains(id))
             names << securityLevel.name;
+    }
+    return names;
+}
+
+QStringList Database::resetTypesUsingSession(int id) const
+{
+    QStringList names;
+    for (const ResetType &resetType : m_resetTypes) {
+        if (resetType.sessionIds.contains(id))
+            names << resetType.name;
     }
     return names;
 }
@@ -171,7 +192,7 @@ bool Database::updateSecurityLevel(const SecurityLevel &securityLevel)
 bool Database::removeSecurityLevel(int id)
 {
     const int index = indexOfSecurityLevel(id);
-    if (index < 0)
+    if (index < 0 || !resetTypesUsingSecurityLevel(id).isEmpty())
         return false;
 
     emit securityLevelAboutToBeRemoved(index);
@@ -180,8 +201,80 @@ bool Database::removeSecurityLevel(int id)
     return true;
 }
 
+QStringList Database::resetTypesUsingSecurityLevel(int id) const
+{
+    QStringList names;
+    for (const ResetType &resetType : m_resetTypes) {
+        if (resetType.securityLevelIds.contains(id))
+            names << resetType.name;
+    }
+    return names;
+}
+
+const QVector<ResetType> &Database::allResetTypes() const
+{
+    return m_resetTypes;
+}
+
+QStringList Database::resetTypeNames() const
+{
+    QStringList names;
+    for (const ResetType &resetType : m_resetTypes)
+        names << resetType.name;
+    return names;
+}
+
+const ResetType *Database::findResetType(int id) const
+{
+    const int index = indexOfResetType(id);
+    return index < 0 ? nullptr : &m_resetTypes.at(index);
+}
+
+int Database::indexOfResetType(int id) const
+{
+    for (int i = 0; i < m_resetTypes.size(); ++i) {
+        if (m_resetTypes.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+int Database::addResetType(ResetType resetType)
+{
+    resetType.id = m_nextId++;
+    emit resetTypeAboutToBeAdded(m_resetTypes.size());
+    m_resetTypes.append(resetType);
+    emit resetTypeAdded(resetType.id);
+    return resetType.id;
+}
+
+bool Database::updateResetType(const ResetType &resetType)
+{
+    const int index = indexOfResetType(resetType.id);
+    if (index < 0)
+        return false;
+    if (m_resetTypes.at(index) == resetType)
+        return true; // nothing changed: no signal, so the document is not marked as edited
+
+    m_resetTypes[index] = resetType;
+    emit resetTypeChanged(resetType.id);
+    return true;
+}
+
+bool Database::removeResetType(int id)
+{
+    const int index = indexOfResetType(id);
+    if (index < 0)
+        return false;
+
+    emit resetTypeAboutToBeRemoved(index);
+    m_resetTypes.removeAt(index);
+    emit resetTypeRemoved(id);
+    return true;
+}
+
 void Database::replaceAll(const Network &newNetwork, QVector<Session> newSessions,
-                          QVector<SecurityLevel> newSecurityLevels)
+                          QVector<SecurityLevel> newSecurityLevels, QVector<ResetType> newResetTypes)
 {
     // Every document has the default session; it comes first if it has to be added.
     const bool hasDefault = std::any_of(newSessions.cbegin(), newSessions.cend(), [](const Session &session) {
@@ -198,18 +291,22 @@ void Database::replaceAll(const Network &newNetwork, QVector<Session> newSession
             newSessionIds.insert(session.id, m_nextId);
         session.id = m_nextId++;
     }
+    QHash<int, int> newSecurityLevelIds; // id given by the caller -> new id
     for (SecurityLevel &securityLevel : newSecurityLevels) {
+        if (securityLevel.id != 0)
+            newSecurityLevelIds.insert(securityLevel.id, m_nextId);
         securityLevel.id = m_nextId++;
-        QVector<int> sessionIds;
-        for (int sessionId : securityLevel.sessionIds) {
-            if (newSessionIds.contains(sessionId))
-                sessionIds.append(newSessionIds.value(sessionId));
-        }
-        securityLevel.sessionIds = sessionIds;
+        securityLevel.sessionIds = renumbered(securityLevel.sessionIds, newSessionIds);
+    }
+    for (ResetType &resetType : newResetTypes) {
+        resetType.id = m_nextId++;
+        resetType.sessionIds = renumbered(resetType.sessionIds, newSessionIds);
+        resetType.securityLevelIds = renumbered(resetType.securityLevelIds, newSecurityLevelIds);
     }
     m_network = newNetwork;
     m_sessions = newSessions;
     m_securityLevels = newSecurityLevels;
+    m_resetTypes = newResetTypes;
     emit wasReset();
 }
 

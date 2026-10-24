@@ -15,6 +15,8 @@ using namespace usc;
 //   Network
 //   0x10 DiagnosticSessionControl
 //     <one row per session, e.g. "0x01 Default">
+//   0x11 ECUReset
+//     <one row per reset type, e.g. "0x01 Hard Reset">
 //   0x27 SecurityAccess
 //     <one row per security level, e.g. "0x01 Extended">
 class NavigationModel : public QAbstractItemModel
@@ -22,16 +24,17 @@ class NavigationModel : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    enum Category { Network, DiagnosticSessionControl, SecurityAccess, CategoryCount };
+    enum Category { Network, DiagnosticSessionControl, EcuReset, SecurityAccess, CategoryCount };
 
     // What a row shows; ask with ItemKindRole.
     enum ItemKind {
         Heading, // row = Category
         SessionItem,
+        ResetTypeItem,
         SecurityLevelItem
     };
 
-    // The id of the database object shown in that row: Session::id or SecurityLevel::id.
+    // The id of the database object shown in that row: Session::id, ResetType::id or SecurityLevel::id.
     static constexpr int ObjectIdRole = Qt::UserRole + 1;
     static constexpr int ItemKindRole = Qt::UserRole + 2;
 

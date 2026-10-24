@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file>icons/ecureset.svg</file>
         <file>icons/network.svg</file>
         <file>icons/securityaccess.svg</file>
         <file>icons/session.svg</file>

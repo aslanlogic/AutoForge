@@ -2,6 +2,7 @@
 #define DATABASE_H
 
 #include "network.h"
+#include "resettype.h"
 #include "securitylevel.h"
 #include "session.h"
 
@@ -44,11 +45,12 @@ public:
     // Emits nothing if it is the same as the stored one.
     bool updateSession(const Session &session);
     // Deletes the session. The default session and a session that a security level
-    // is still allowed in are not deleted: returns false then, and also if there is
-    // no session with this id.
+    // or reset type is still allowed in are not deleted: returns false then, and
+    // also if there is no session with this id.
     bool removeSession(int id);
-    // Names of the security levels that are allowed in this session.
+    // Names of the security levels / reset types that are allowed in this session.
     QStringList securityLevelsUsingSession(int id) const;
+    QStringList resetTypesUsingSession(int id) const;
 
     const QVector<SecurityLevel> &allSecurityLevels() const;
     QStringList securityLevelNames() const;
@@ -62,15 +64,28 @@ public:
     // Replaces the stored security level that has the same id. Returns false if there is none.
     // Emits nothing if it is the same as the stored one.
     bool updateSecurityLevel(const SecurityLevel &securityLevel);
-    // Deletes the security level. Returns false if there is none with this id.
+    // Deletes the security level. One that a reset type still needs is not
+    // deleted: returns false then, and also if there is none with this id.
     bool removeSecurityLevel(int id);
+    // Names of the reset types that this security level allows.
+    QStringList resetTypesUsingSecurityLevel(int id) const;
+
+    // Reset types: same idea as the security level functions above.
+    const QVector<ResetType> &allResetTypes() const;
+    QStringList resetTypeNames() const;
+    const ResetType *findResetType(int id) const;
+    int indexOfResetType(int id) const;
+    int addResetType(ResetType resetType);
+    bool updateResetType(const ResetType &resetType);
+    bool removeResetType(int id);
 
     // Throws away everything and stores these instead, each with a new unique id.
     // Used when a file is opened. Adds the default session if newSessions has none.
-    // The sessions must come with ids that are unique among them; the security
-    // levels' sessionIds are renumbered along with them, unknown ones are dropped.
+    // The sessions and security levels must come with ids that are unique among
+    // their kind; the references to them (sessionIds, securityLevelIds) are
+    // renumbered along with them, unknown ones are dropped.
     void replaceAll(const Network &newNetwork, QVector<Session> newSessions,
-                    QVector<SecurityLevel> newSecurityLevels);
+                    QVector<SecurityLevel> newSecurityLevels, QVector<ResetType> newResetTypes);
 
 signals:
     void networkChanged();
@@ -90,6 +105,11 @@ signals:
     // Emitted before and after the security level at position `index` is deleted.
     void securityLevelAboutToBeRemoved(int index);
     void securityLevelRemoved(int id);
+    void resetTypeAboutToBeAdded(int index);
+    void resetTypeAdded(int id);
+    void resetTypeChanged(int id);
+    void resetTypeAboutToBeRemoved(int index);
+    void resetTypeRemoved(int id);
     // Emitted before and after everything is replaced at once (see replaceAll()).
     void aboutToBeReset();
     void wasReset();
@@ -98,6 +118,7 @@ private:
     Network m_network;
     QVector<Session> m_sessions;
     QVector<SecurityLevel> m_securityLevels;
+    QVector<ResetType> m_resetTypes;
     int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };
 

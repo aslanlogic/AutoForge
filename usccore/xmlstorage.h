@@ -25,6 +25,14 @@ class Database;
 //         <Comment>Unlocks writing of calibration data</Comment>
 //       </SecurityLevel>
 //     </SecurityLevels>
+//     <ResetTypes>
+//       <ResetType name="Hard Reset" resetType="0x01">
+//         <AllowedSession name="Extended"/>         (by session name; one per session)
+//         <SecurityLevel name="Extended"/>          (by name; any of them allows it, none = no security)
+//         <Comment>Restarts the ECU like a power cycle</Comment>
+//       </ResetType>
+//       <ResetType name="Rapid Shutdown" resetType="0x04" powerDownTime="10"/>  (s; only on 0x04, 255 = not available)
+//     </ResetTypes>
 //   </UDScribe>
 //
 // Ids are not saved; they are assigned again when the file is loaded.

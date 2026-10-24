@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- a power symbol: the ECU restarts -->
+  <path d="M5 3.6a5.6 5.6 0 1 0 6 0" fill="none" stroke="#c0392b" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M8 1.6v6" fill="none" stroke="#c0392b" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

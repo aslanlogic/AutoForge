@@ -2,6 +2,9 @@
 #include "navigationmodel.h"
 #include "networkdialog.h"
 #include "networkpropertieswidget.h"
+#include "resettypedialog.h"
+#include "resettypepropertieswidget.h"
+#include "resettypetablemodel.h"
 #include "securityleveldialog.h"
 #include "securitylevelpropertieswidget.h"
 #include "securityleveltablemodel.h"
@@ -38,6 +41,17 @@ QVector<quint8> sessionTypesUsedByOthers(const Database &database, int id)
     return sessionTypes;
 }
 
+// The resetType sub-functions of all reset types except the one with this id.
+QVector<quint8> resetTypesUsedByOthers(const Database &database, int id)
+{
+    QVector<quint8> resetTypes;
+    for (const ResetType &resetType : database.allResetTypes()) {
+        if (resetType.id != id)
+            resetTypes.append(resetType.resetType);
+    }
+    return resetTypes;
+}
+
 // The requestSeed sub-functions of all security levels except the one with this id.
 QVector<quint8> requestSeedsUsedByOthers(const Database &database, int id)
 {
@@ -68,6 +82,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::sessionAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::sessionChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::sessionRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::resetTypeAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::resetTypeChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::resetTypeRemoved, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelRemoved, this, [this] { setWindowModified(true); });
@@ -114,6 +131,9 @@ void MainWindow::setupLayout()
     m_sessionTableModel = new SessionTableModel(m_database, this);
     m_sessionTable = createSortableTable(m_sessionTableModel, SessionTableModel::SortRole);
     m_sessionProperties = new SessionPropertiesWidget;
+    m_resetTypeTableModel = new ResetTypeTableModel(m_database, this);
+    m_resetTypeTable = createSortableTable(m_resetTypeTableModel, ResetTypeTableModel::SortRole);
+    m_resetTypeProperties = new ResetTypePropertiesWidget;
     m_securityLevelTableModel = new SecurityLevelTableModel(m_database, this);
     m_securityLevelTable = createSortableTable(m_securityLevelTableModel, SecurityLevelTableModel::SortRole);
     m_networkProperties = new NetworkPropertiesWidget;
@@ -122,6 +142,8 @@ void MainWindow::setupLayout()
     m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_sessionTable);
     m_rightPane->addWidget(m_sessionProperties);
+    m_rightPane->addWidget(m_resetTypeTable);
+    m_rightPane->addWidget(m_resetTypeProperties);
     m_rightPane->addWidget(m_securityLevelTable);
     m_rightPane->addWidget(m_securityLevelProperties);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
@@ -131,12 +153,17 @@ void MainWindow::setupLayout()
     connect(m_database, &Database::networkChanged, this, &MainWindow::refreshNetworkProperties);
     connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshSessionProperties);
     connect(m_database, &Database::sessionRemoved, this, &MainWindow::refreshSessionProperties);
+    connect(m_database, &Database::resetTypeChanged, this, &MainWindow::refreshResetTypeProperties);
+    connect(m_database, &Database::resetTypeRemoved, this, &MainWindow::refreshResetTypeProperties);
+    connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshResetTypeProperties);       // names
+    connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshResetTypeProperties); // names
     connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshSecurityLevelProperties);
     connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshSecurityLevelProperties); // session names
     connect(m_database, &Database::securityLevelRemoved, this, &MainWindow::refreshSecurityLevelProperties);
     // New and Open renumber all ids and leave nothing selected in the tree: start empty.
     connect(m_database, &Database::wasReset, this, [this] {
         m_shownSessionId = 0;
+        m_shownResetTypeId = 0;
         m_shownSecurityLevelId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     });
@@ -198,10 +225,14 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
     if (kind == NavigationModel::Heading) {
         if (index.row() == NavigationModel::DiagnosticSessionControl)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSession);
+        else if (index.row() == NavigationModel::EcuReset)
+            menu.addAction(newIcon, "Add...", this, &MainWindow::createNewResetType);
         else if (index.row() == NavigationModel::SecurityAccess)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSecurityLevel);
     } else if (kind == NavigationModel::SessionItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSession(id); });
+    } else if (kind == NavigationModel::ResetTypeItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteResetType(id); });
     } else if (kind == NavigationModel::SecurityLevelItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSecurityLevel(id); });
     }
@@ -221,6 +252,9 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
     case NavigationModel::SessionItem:
         editSession(id);
         break;
+    case NavigationModel::ResetTypeItem:
+        editResetType(id);
+        break;
     case NavigationModel::SecurityLevelItem:
         editSecurityLevel(id);
         break;
@@ -231,6 +265,7 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
 {
     // A service shows the table of all its items, an item shows its own properties.
     m_shownSessionId = 0;
+    m_shownResetTypeId = 0;
     m_shownSecurityLevelId = 0;
     switch (current.data(NavigationModel::ItemKindRole).toInt()) {
     case NavigationModel::Heading:
@@ -243,6 +278,10 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
             m_rightPane->setCurrentWidget(m_sessionTable);
             return;
         }
+        if (current.row() == NavigationModel::EcuReset) {
+            m_rightPane->setCurrentWidget(m_resetTypeTable);
+            return;
+        }
         if (current.row() == NavigationModel::SecurityAccess) {
             m_rightPane->setCurrentWidget(m_securityLevelTable);
             return;
@@ -251,6 +290,10 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
     case NavigationModel::SessionItem:
         m_shownSessionId = current.data(NavigationModel::ObjectIdRole).toInt();
         refreshSessionProperties();
+        return;
+    case NavigationModel::ResetTypeItem:
+        m_shownResetTypeId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshResetTypeProperties();
         return;
     case NavigationModel::SecurityLevelItem:
         m_shownSecurityLevelId = current.data(NavigationModel::ObjectIdRole).toInt();
@@ -270,6 +313,20 @@ void MainWindow::refreshSessionProperties()
         m_rightPane->setCurrentWidget(m_sessionProperties);
     } else {
         m_shownSessionId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    }
+}
+
+void MainWindow::refreshResetTypeProperties()
+{
+    if (m_shownResetTypeId == 0)
+        return; // no reset type is shown
+
+    if (const ResetType *resetType = m_database->findResetType(m_shownResetTypeId)) {
+        m_resetTypeProperties->showResetType(*resetType, *m_database);
+        m_rightPane->setCurrentWidget(m_resetTypeProperties);
+    } else {
+        m_shownResetTypeId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     }
 }
@@ -355,19 +412,23 @@ void MainWindow::deleteSession(int id)
         return;
     const QString label = subFunctionToText(session->sessionType) + ' ' + session->name;
 
-    // The default session and a session that a security level is allowed in
-    // cannot be deleted (Database refuses it too).
+    // The default session and a session that a security level or reset type is
+    // allowed in cannot be deleted (Database refuses it too).
     if (session->sessionType == DefaultSessionType) {
         QMessageBox::information(this, "Delete Session",
                                  QString("The session '%1' cannot be deleted: every ECU has the "
                                          "default session.").arg(label));
         return;
     }
-    const QStringList usedBy = m_database->securityLevelsUsingSession(id);
+    QStringList usedBy;
+    for (const QString &name : m_database->securityLevelsUsingSession(id))
+        usedBy << name + " (security level)";
+    for (const QString &name : m_database->resetTypesUsingSession(id))
+        usedBy << name + " (reset type)";
     if (!usedBy.isEmpty()) {
         QMessageBox::information(this, "Delete Session",
-                                 QString("The session '%1' cannot be deleted because these security "
-                                         "levels are allowed in it:\n%2\n\nRemove it from them first.")
+                                 QString("The session '%1' cannot be deleted because these are "
+                                         "allowed in it:\n%2\n\nRemove it from them first.")
                                      .arg(label, usedBy.join(", ")));
         return;
     }
@@ -376,6 +437,66 @@ void MainWindow::deleteSession(int id)
     if (QMessageBox::question(this, "Delete Session", question,
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
         m_database->removeSession(id);
+}
+
+void MainWindow::createNewResetType()
+{
+    const QStringList existingNames = m_database->resetTypeNames();
+    const QVector<quint8> usedResetTypes = resetTypesUsedByOthers(*m_database, 0);
+
+    // Pick the first free default name: New_ResetType_1, New_ResetType_2, ...
+    ResetType newResetType;
+    int number = 1;
+    do {
+        newResetType.name = QString("New_ResetType_%1").arg(number++);
+    } while (existingNames.contains(newResetType.name));
+
+    // And the first free resetType sub-function. If none is free, the dialog says so.
+    for (int value = 0; value <= 0xFF; ++value) {
+        const quint8 type = quint8(value);
+        if (isValidResetType(type) && !usedResetTypes.contains(type)) {
+            newResetType.resetType = type;
+            break;
+        }
+    }
+
+    ResetTypeDialog dialog(newResetType, existingNames, usedResetTypes, m_database->allSessions(),
+                           m_database->allSecurityLevels(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addResetType(dialog.resetType());
+}
+
+void MainWindow::editResetType(int id)
+{
+    const ResetType *stored = m_database->findResetType(id);
+    if (!stored)
+        return;
+    const ResetType resetType = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->resetTypeNames();
+    otherNames.removeOne(resetType.name);
+
+    ResetTypeDialog dialog(resetType, otherNames, resetTypesUsedByOthers(*m_database, id), m_database->allSessions(),
+                           m_database->allSecurityLevels(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateResetType(dialog.resetType());
+}
+
+void MainWindow::deleteResetType(int id)
+{
+    const ResetType *resetType = m_database->findResetType(id);
+    if (!resetType)
+        return;
+
+    const QString question = QString("Delete the reset type '%1 %2'?")
+                                 .arg(subFunctionToText(resetType->resetType), resetType->name);
+    if (QMessageBox::question(this, "Delete Reset Type", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeResetType(id);
 }
 
 void MainWindow::createNewSecurityLevel()
@@ -430,8 +551,19 @@ void MainWindow::deleteSecurityLevel(int id)
     if (!securityLevel)
         return;
 
-    const QString question = QString("Delete the security level '%1 %2'?")
-                                 .arg(subFunctionToText(securityLevel->requestSeed), securityLevel->name);
+    const QString label = subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
+
+    // A security level that a reset type needs cannot be deleted (Database refuses it too).
+    const QStringList usedBy = m_database->resetTypesUsingSecurityLevel(id);
+    if (!usedBy.isEmpty()) {
+        QMessageBox::information(this, "Delete Security Level",
+                                 QString("The security level '%1' cannot be deleted because these "
+                                         "reset types need it:\n%2\n\nRemove it from them first.")
+                                     .arg(label, usedBy.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the security level '%1'?").arg(label);
     if (QMessageBox::question(this, "Delete Security Level", question,
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
         m_database->removeSecurityLevel(id);
@@ -448,7 +580,7 @@ void MainWindow::newFile()
     if (!maybeSave())
         return;
 
-    m_database->replaceAll(Network(), {}, {});
+    m_database->replaceAll(Network(), {}, {}, {});
     setCurrentFilePath(QString());
     setWindowModified(false);
 }

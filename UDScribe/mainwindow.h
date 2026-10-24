@@ -14,6 +14,8 @@ class QSplitter;
 class QStackedWidget;
 class QTableView;
 class QTreeView;
+class ResetTypePropertiesWidget;
+class ResetTypeTableModel;
 class SecurityLevelPropertiesWidget;
 class SecurityLevelTableModel;
 class SessionPropertiesWidget;
@@ -46,6 +48,8 @@ private:
     QTableView *createSortableTable(QAbstractItemModel *model, int sortRole);
     // Draws the shown session again, or the empty page if it no longer exists.
     void refreshSessionProperties();
+    // Draws the shown reset type again, or the empty page if it no longer exists.
+    void refreshResetTypeProperties();
     // Draws the shown security level again, or the empty page if it no longer exists.
     void refreshSecurityLevelProperties();
     // Draws the network page again if it is shown.
@@ -57,6 +61,9 @@ private:
     void createNewSession();
     void editSession(int id);
     void deleteSession(int id);
+    void createNewResetType();
+    void editResetType(int id);
+    void deleteResetType(int id);
     void createNewSecurityLevel();
     void editSecurityLevel(int id);
     void deleteSecurityLevel(int id);
@@ -64,6 +71,7 @@ private:
     Database *m_database = nullptr;
     NavigationModel *m_navigationModel = nullptr;
     SessionTableModel *m_sessionTableModel = nullptr;
+    ResetTypeTableModel *m_resetTypeTableModel = nullptr;
     SecurityLevelTableModel *m_securityLevelTableModel = nullptr;
     QString m_currentFilePath; // empty until the document is saved or opened
 
@@ -72,10 +80,13 @@ private:
     QStackedWidget *m_rightPane = nullptr;
     QWidget *m_emptyPage = nullptr;
     QTableView *m_sessionTable = nullptr;
+    QTableView *m_resetTypeTable = nullptr;
     QTableView *m_securityLevelTable = nullptr;
     NetworkPropertiesWidget *m_networkProperties = nullptr;
     SessionPropertiesWidget *m_sessionProperties = nullptr;
     int m_shownSessionId = 0; // the session on m_sessionProperties; 0 = none
+    ResetTypePropertiesWidget *m_resetTypeProperties = nullptr;
+    int m_shownResetTypeId = 0; // the reset type on m_resetTypeProperties; 0 = none
     SecurityLevelPropertiesWidget *m_securityLevelProperties = nullptr;
     int m_shownSecurityLevelId = 0; // the level on m_securityLevelProperties; 0 = none
 };

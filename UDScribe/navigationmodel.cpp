@@ -37,6 +37,23 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
         endRemoveRows();
     });
 
+    connect(m_database, &Database::resetTypeAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(EcuReset), index, index);
+    });
+    connect(m_database, &Database::resetTypeAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::resetTypeChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfResetType(id), 0, categoryIndex(EcuReset));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::resetTypeAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(EcuReset), index, index);
+    });
+    connect(m_database, &Database::resetTypeRemoved, this, [this] {
+        endRemoveRows();
+    });
+
     connect(m_database, &Database::securityLevelAboutToBeAdded, this, [this](int index) {
         beginInsertRows(categoryIndex(SecurityAccess), index, index);
     });
@@ -89,6 +106,7 @@ int NavigationModel::rowCount(const QModelIndex &parent) const
 
     switch (parent.row()) {
     case DiagnosticSessionControl: return m_database->allSessions().size();
+    case EcuReset:                 return m_database->allResetTypes().size();
     case SecurityAccess:           return m_database->allSecurityLevels().size();
     }
     return 0;
@@ -107,9 +125,9 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     // Icons are compiled into the program from resources.qrc.
     if (isHeading(index)) {
         static const char *const headings[CategoryCount] = {
-            "Network", "0x10 DiagnosticSessionControl", "0x27 SecurityAccess"};
+            "Network", "0x10 DiagnosticSessionControl", "0x11 ECUReset", "0x27 SecurityAccess"};
         static const char *const icons[CategoryCount] = {
-            ":/icons/network.svg", ":/icons/session.svg", ":/icons/securityaccess.svg"};
+            ":/icons/network.svg", ":/icons/session.svg", ":/icons/ecureset.svg", ":/icons/securityaccess.svg"};
         switch (role) {
         case Qt::DisplayRole:    return QString(headings[index.row()]);
         case Qt::DecorationRole: return QIcon(icons[index.row()]);
@@ -129,6 +147,12 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         const Session &session = m_database->allSessions().at(index.row());
         name = subFunctionToText(session.sessionType) + ' ' + session.name; icon = ":/icons/session.svg"; kind = SessionItem;
         id = session.id;
+        break;
+    }
+    case EcuReset: {
+        const ResetType &resetType = m_database->allResetTypes().at(index.row());
+        name = subFunctionToText(resetType.resetType) + ' ' + resetType.name; icon = ":/icons/ecureset.svg"; kind = ResetTypeItem;
+        id = resetType.id;
         break;
     }
     case SecurityAccess: {

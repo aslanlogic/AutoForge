@@ -16,6 +16,7 @@ SOURCES += \
 HEADERS += \
     database.h \
     network.h \
+    resettype.h \
     securitylevel.h \
     session.h \
     uds.h \

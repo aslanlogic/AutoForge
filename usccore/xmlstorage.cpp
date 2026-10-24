@@ -9,6 +9,8 @@
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 
+#include <algorithm>
+
 namespace usc {
 
 namespace {
@@ -356,6 +358,76 @@ void writeNetwork(QXmlStreamWriter &writer, const Network &network)
     writer.writeEndElement(); // Network
 }
 
+// Reads one <ResetType> element. On a problem it calls reader.raiseError().
+// The names of its allowed sessions and security levels go to *sessionNames and
+// *securityLevelNames; they are turned into ids once the whole file is read.
+ResetType readResetType(QXmlStreamReader &reader, QStringList *sessionNames, QStringList *securityLevelNames)
+{
+    const QXmlStreamAttributes attributes = reader.attributes();
+    ResetType resetType;
+
+    resetType.name = attributes.value("name").toString().trimmed();
+    if (resetType.name.isEmpty())
+        reader.raiseError("A reset type has no name.");
+
+    // resetType is written as hex ("0x01"); plain decimal is accepted too.
+    const QString type = attributes.value("resetType").toString().trimmed();
+    bool ok = false;
+    uint value = 0;
+    if (type.startsWith("0x", Qt::CaseInsensitive))
+        value = type.mid(2).toUInt(&ok, 16);
+    else
+        value = type.toUInt(&ok, 10);
+    if (!ok || value > 0xFF || !isValidResetType(quint8(value)))
+        reader.raiseError(QString("Reset type '%1': resetType '%2' is not a valid sub-function.")
+                              .arg(resetType.name, type));
+    resetType.resetType = quint8(value);
+
+    // Only EnableRapidPowerShutDown reports a power down time; elsewhere it is ignored.
+    if (resetType.resetType == EnableRapidPowerShutDown && attributes.hasAttribute("powerDownTime")) {
+        const int powerDownTime = attributes.value("powerDownTime").toInt(&ok);
+        if (!ok || powerDownTime < 0 || powerDownTime > PowerDownTimeNotAvailable)
+            reader.raiseError(QString("Reset type '%1': 'powerDownTime' must be a whole number from 0 to %2.")
+                                  .arg(resetType.name).arg(PowerDownTimeNotAvailable));
+        else
+            resetType.powerDownTime = powerDownTime;
+    }
+
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Comment")) {
+            resetType.comment = reader.readElementText();
+        } else {
+            if (reader.name() == QLatin1String("AllowedSession"))
+                sessionNames->append(reader.attributes().value("name").toString());
+            else if (reader.name() == QLatin1String("SecurityLevel"))
+                securityLevelNames->append(reader.attributes().value("name").toString());
+            reader.skipCurrentElement();
+        }
+    }
+    return resetType;
+}
+
+// Turns the names in `names` into ids by `idByName` and puts them in *ids (each once),
+// in document order, which is the order the dialogs list them in; then an edit that
+// changes nothing compares equal. If a name is unknown, puts what is wrong in
+// *errorMessage and returns false.
+bool resolveNames(const QStringList &names, const QHash<QString, int> &idByName, QVector<int> *ids,
+                  const QString &owner, const QString &kind, QString *errorMessage)
+{
+    for (const QString &name : names) {
+        if (!idByName.contains(name)) {
+            *errorMessage = QString("%1 refers to %2 '%3', which does not exist.").arg(owner, kind, name);
+            return false;
+        }
+        const int id = idByName.value(name);
+        if (!ids->contains(id))
+            ids->append(id);
+    }
+    // Ids are given in document order, so ascending ids are document order.
+    std::sort(ids->begin(), ids->end());
+    return true;
+}
+
 } // namespace
 
 namespace XmlStorage {
@@ -411,6 +483,31 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
     }
     writer.writeEndElement(); // SecurityLevels
 
+    writer.writeStartElement("ResetTypes");
+    for (const ResetType &resetType : database.allResetTypes()) {
+        writer.writeStartElement("ResetType");
+        writer.writeAttribute("name", resetType.name);
+        writer.writeAttribute("resetType", subFunctionToText(resetType.resetType));
+        if (resetType.resetType == EnableRapidPowerShutDown)
+            writer.writeAttribute("powerDownTime", QString::number(resetType.powerDownTime));
+        for (int sessionId : resetType.sessionIds) {
+            if (const Session *session = database.findSession(sessionId)) {
+                writer.writeEmptyElement("AllowedSession");
+                writer.writeAttribute("name", session->name);
+            }
+        }
+        for (int securityLevelId : resetType.securityLevelIds) {
+            if (const SecurityLevel *securityLevel = database.findSecurityLevel(securityLevelId)) {
+                writer.writeEmptyElement("SecurityLevel");
+                writer.writeAttribute("name", securityLevel->name);
+            }
+        }
+        if (!resetType.comment.isEmpty())
+            writer.writeTextElement("Comment", resetType.comment);
+        writer.writeEndElement(); // ResetType
+    }
+    writer.writeEndElement(); // ResetTypes
+
     writer.writeEndElement(); // UDScribe
     writer.writeEndDocument();
 
@@ -437,6 +534,11 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     QVector<SecurityLevel> loadedSecurityLevels;
     QVector<QStringList> allowedSessionNames; // per loaded security level; resolved once all sessions are read
     QSet<QString> securityLevelNames;
+    QVector<ResetType> loadedResetTypes;
+    QVector<QStringList> resetTypeSessionNames;       // per loaded reset type, resolved at the end
+    QVector<QStringList> resetTypeSecurityLevelNames; // likewise
+    QSet<QString> resetTypeNames;
+    QSet<quint8> resetTypeValues;
     QSet<quint8> requestSeeds;
 
     if (!reader.readNextStartElement() || reader.name() != QLatin1String("UDScribe")) {
@@ -475,7 +577,8 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                     continue;
                 }
                 QStringList sessionNames;
-                const SecurityLevel securityLevel = readSecurityLevel(reader, &sessionNames);
+                SecurityLevel securityLevel = readSecurityLevel(reader, &sessionNames);
+                securityLevel.id = loadedSecurityLevels.size() + 1; // temporary; Database renumbers
                 if (!reader.hasError() && securityLevelNames.contains(securityLevel.name))
                     reader.raiseError(QString("There are two security levels named '%1'.").arg(securityLevel.name));
                 if (!reader.hasError() && requestSeeds.contains(securityLevel.requestSeed))
@@ -485,6 +588,26 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
                 requestSeeds.insert(securityLevel.requestSeed);
                 loadedSecurityLevels.append(securityLevel);
                 allowedSessionNames.append(sessionNames);
+            }
+        } else if (reader.name() == QLatin1String("ResetTypes")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("ResetType")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                QStringList sessionNames;
+                QStringList securityLevelNames;
+                const ResetType resetType = readResetType(reader, &sessionNames, &securityLevelNames);
+                if (!reader.hasError() && resetTypeNames.contains(resetType.name))
+                    reader.raiseError(QString("There are two reset types named '%1'.").arg(resetType.name));
+                if (!reader.hasError() && resetTypeValues.contains(resetType.resetType))
+                    reader.raiseError(QString("There are two reset types with resetType %1.")
+                                          .arg(subFunctionToText(resetType.resetType)));
+                resetTypeNames.insert(resetType.name);
+                resetTypeValues.insert(resetType.resetType);
+                loadedResetTypes.append(resetType);
+                resetTypeSessionNames.append(sessionNames);
+                resetTypeSecurityLevelNames.append(securityLevelNames);
             }
         } else {
             reader.skipCurrentElement();
@@ -496,25 +619,31 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         return false;
     }
 
-    // Now that all sessions are known, turn the session names in security levels into ids.
+    // Now that the whole file is read, turn the session and security level names into ids.
     QHash<QString, int> sessionIdByName;
     for (const Session &session : loadedSessions)
         sessionIdByName.insert(session.name, session.id);
+    QHash<QString, int> securityLevelIdByName;
+    for (const SecurityLevel &securityLevel : loadedSecurityLevels)
+        securityLevelIdByName.insert(securityLevel.name, securityLevel.id);
     for (int i = 0; i < loadedSecurityLevels.size(); ++i) {
         SecurityLevel &securityLevel = loadedSecurityLevels[i];
-        for (const QString &name : allowedSessionNames.at(i)) {
-            if (!sessionIdByName.contains(name)) {
-                *errorMessage = QString("Security level '%1' is allowed in session '%2', which does not exist.")
-                                    .arg(securityLevel.name, name);
-                return false;
-            }
-            const int sessionId = sessionIdByName.value(name);
-            if (!securityLevel.sessionIds.contains(sessionId))
-                securityLevel.sessionIds.append(sessionId);
-        }
+        const QString owner = QString("Security level '%1'").arg(securityLevel.name);
+        if (!resolveNames(allowedSessionNames.at(i), sessionIdByName, &securityLevel.sessionIds, owner, "session",
+                          errorMessage))
+            return false;
+    }
+    for (int i = 0; i < loadedResetTypes.size(); ++i) {
+        ResetType &resetType = loadedResetTypes[i];
+        const QString owner = QString("Reset type '%1'").arg(resetType.name);
+        if (!resolveNames(resetTypeSessionNames.at(i), sessionIdByName, &resetType.sessionIds, owner, "session",
+                          errorMessage)
+            || !resolveNames(resetTypeSecurityLevelNames.at(i), securityLevelIdByName, &resetType.securityLevelIds,
+                             owner, "security level", errorMessage))
+            return false;
     }
 
-    database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels);
+    database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels, loadedResetTypes);
     return true;
 }
 
