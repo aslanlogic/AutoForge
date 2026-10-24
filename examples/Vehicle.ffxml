@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FrameForge version="1">
+    <Network protocol="udp">
+        <Udp mode="unicast" localAddress="0.0.0.0" localPort="5001" remoteAddress="127.0.0.1" remotePort="5000" multicastGroup="239.0.0.1" idSize="4"/>
+    </Network>
+    <Nodes>
+        <Node name="EngineECU">
+            <Comment>Engine control unit</Comment>
+        </Node>
+        <Node name="BodyECU">
+            <Comment>Body control unit; the ECU that BodyECU.uscxml describes</Comment>
+        </Node>
+        <Node name="Tester">
+            <Comment>DiagProbe; its messages are sent with the Interactive generator</Comment>
+        </Node>
+    </Nodes>
+    <ValueTables>
+        <ValueTable name="OnOff">
+            <Value value="0" description="Off"/>
+            <Value value="1" description="On"/>
+        </ValueTable>
+        <ValueTable name="WiperSpeed">
+            <Value value="0" description="Off"/>
+            <Value value="1" description="Interval"/>
+            <Value value="2" description="Slow"/>
+            <Value value="3" description="Fast"/>
+        </ValueTable>
+        <ValueTable name="GearPosition">
+            <Value value="0" description="P"/>
+            <Value value="1" description="R"/>
+            <Value value="2" description="N"/>
+            <Value value="3" description="D"/>
+            <Value value="4" description="S"/>
+        </ValueTable>
+    </ValueTables>
+    <Signals>
+        <Signal name="EngineSpeed" length="16" byteOrder="intel" valueType="unsigned" unit="rpm" initialValue="0" factor="0.25" offset="0" minimum="0" maximum="8000">
+            <Comment>Crankshaft speed</Comment>
+        </Signal>
+        <Signal name="CoolantTemp" length="8" byteOrder="intel" valueType="unsigned" unit="°C" initialValue="0" factor="1" offset="-40" minimum="-40" maximum="150"/>
+        <Signal name="ThrottlePosition" length="8" byteOrder="intel" valueType="unsigned" unit="%" initialValue="0" factor="0.4" offset="0" minimum="0" maximum="100"/>
+        <Signal name="VehicleSpeed" length="16" byteOrder="motorola" valueType="unsigned" unit="km/h" initialValue="0" factor="0.01" offset="0" minimum="0" maximum="250">
+            <Comment>Motorola, to show both byte orders</Comment>
+        </Signal>
+        <Signal name="Gear" length="4" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="4" valueTable="GearPosition"/>
+        <Signal name="Ignition" length="1" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="1" valueTable="OnOff"/>
+        <Signal name="FuelLevel" length="8" byteOrder="intel" valueType="unsigned" unit="%" initialValue="0" factor="0.4" offset="0" minimum="0" maximum="100"/>
+        <Signal name="AmbientTemp" length="8" byteOrder="intel" valueType="signed" unit="°C" initialValue="0" factor="0.5" offset="0" minimum="-40" maximum="60"/>
+        <Signal name="HeadLamps" length="1" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="1" valueTable="OnOff"/>
+        <Signal name="WiperSpeed" length="2" byteOrder="intel" valueType="unsigned" unit="" initialValue="0" factor="1" offset="0" minimum="0" maximum="3" valueTable="WiperSpeed"/>
+        <Signal name="InteriorLight" length="8" byteOrder="intel" valueType="unsigned" unit="%" initialValue="0" factor="0.5" offset="0" minimum="0" maximum="100"/>
+    </Signals>
+    <Messages>
+        <Message name="EngineData" frameId="0x100" length="8" txMethod="cyclic" cycleTime="50" transmitter="EngineECU">
+            <Receiver name="BodyECU"/>
+            <Receiver name="Tester"/>
+            <SignalRef name="EngineSpeed" startBit="0"/>
+            <SignalRef name="CoolantTemp" startBit="16"/>
+            <SignalRef name="ThrottlePosition" startBit="24"/>
+        </Message>
+        <Message name="VehicleData" frameId="0x110" length="8" txMethod="cyclic" cycleTime="100" transmitter="EngineECU">
+            <Receiver name="BodyECU"/>
+            <Receiver name="Tester"/>
+            <SignalRef name="VehicleSpeed" startBit="7"/>
+            <SignalRef name="Gear" startBit="16"/>
+        </Message>
+        <Message name="Dashboard" frameId="0x2A0" length="4" txMethod="cyclic" cycleTime="200" transmitter="BodyECU">
+            <Receiver name="Tester"/>
+            <SignalRef name="Ignition" startBit="0"/>
+            <SignalRef name="FuelLevel" startBit="8"/>
+            <SignalRef name="AmbientTemp" startBit="16"/>
+        </Message>
+        <Message name="BodyCommands" frameId="0x350" length="3" txMethod="cyclic-and-on-event" cycleTime="100" transmitter="Tester">
+            <Receiver name="BodyECU"/>
+            <SignalRef name="HeadLamps" startBit="0"/>
+            <SignalRef name="WiperSpeed" startBit="1"/>
+            <SignalRef name="InteriorLight" startBit="8"/>
+            <Comment>Sent by the tester to switch the body functions</Comment>
+        </Message>
+    </Messages>
+</FrameForge>

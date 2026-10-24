@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UDScribe version="1">
+    <Network protocol="udp" requestId="0x7E0" responseId="0x7E8">
+        <Udp mode="unicast" localAddress="0.0.0.0" localPort="5001" remoteAddress="127.0.0.1" remotePort="5000" multicastGroup="239.0.0.1" idSize="4"/>
+    </Network>
+    <ValueTables>
+        <ValueTable name="DoorState">
+            <Value value="0" description="Closed"/>
+            <Value value="1" description="Open"/>
+        </ValueTable>
+        <ValueTable name="GearPosition">
+            <Value value="0" description="P"/>
+            <Value value="1" description="R"/>
+            <Value value="2" description="N"/>
+            <Value value="3" description="D"/>
+            <Value value="4" description="S"/>
+        </ValueTable>
+    </ValueTables>
+    <DataTypes>
+        <DataType name="VIN" length="136" byteOrder="intel" valueType="ascii" unit="" factor="1" offset="0" minimum="0" maximum="0"/>
+        <DataType name="PartNumber" length="80" byteOrder="intel" valueType="bytes" unit="" factor="1" offset="0" minimum="0" maximum="0"/>
+        <DataType name="SoftwareVersion" length="64" byteOrder="intel" valueType="ascii" unit="" factor="1" offset="0" minimum="0" maximum="0"/>
+        <DataType name="TyrePressure" length="8" byteOrder="intel" valueType="unsigned" unit="bar" factor="0.02" offset="0" minimum="1.8" maximum="2.8"/>
+        <DataType name="Odometer" length="24" byteOrder="motorola" valueType="unsigned" unit="km" factor="0.1" offset="0" minimum="0" maximum="999999"/>
+        <DataType name="DoorState" length="1" byteOrder="intel" valueType="unsigned" unit="" factor="1" offset="0" minimum="0" maximum="1" valueTable="DoorState"/>
+        <DataType name="Gear" length="4" byteOrder="intel" valueType="unsigned" unit="" factor="1" offset="0" minimum="0" maximum="4" valueTable="GearPosition"/>
+        <DataType name="BatteryVoltage" length="16" byteOrder="motorola" valueType="unsigned" unit="V" factor="0.001" offset="0" minimum="11" maximum="15"/>
+        <DataType name="InteriorLightLevel" length="8" byteOrder="intel" valueType="unsigned" unit="%" factor="0.5" offset="0" minimum="0" maximum="100"/>
+    </DataTypes>
+    <DataIdentifiers>
+        <DataIdentifier name="VIN" did="0xF190" length="17">
+            <DataType name="VIN" dataType="VIN" startBit="0"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+            <WriteSession name="Programming"/>
+            <WriteSecurityLevel name="Programming"/>
+            <Comment>Vehicle identification number</Comment>
+        </DataIdentifier>
+        <DataIdentifier name="SparePartNumber" did="0xF187" length="10">
+            <DataType name="PartNumber" dataType="PartNumber" startBit="0"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+        </DataIdentifier>
+        <DataIdentifier name="SoftwareVersion" did="0xF195" length="8">
+            <DataType name="SoftwareVersion" dataType="SoftwareVersion" startBit="0"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+        </DataIdentifier>
+        <DataIdentifier name="TyrePressures" did="0x0100" length="4">
+            <DataType name="FrontLeft" dataType="TyrePressure" startBit="0"/>
+            <DataType name="FrontRight" dataType="TyrePressure" startBit="8"/>
+            <DataType name="RearLeft" dataType="TyrePressure" startBit="16"/>
+            <DataType name="RearRight" dataType="TyrePressure" startBit="24"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+            <Comment>The same data type placed four times</Comment>
+        </DataIdentifier>
+        <DataIdentifier name="Odometer" did="0x0200" length="3">
+            <DataType name="Odometer" dataType="Odometer" startBit="7"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+            <WriteSession name="Extended"/>
+            <WriteSecurityLevel name="Extended"/>
+            <Comment>Writable in Extended with the Extended level</Comment>
+        </DataIdentifier>
+        <DataIdentifier name="DoorStatus" did="0x0300" length="1">
+            <DataType name="DriverDoor" dataType="DoorState" startBit="0"/>
+            <DataType name="PassengerDoor" dataType="DoorState" startBit="1"/>
+            <DataType name="RearLeftDoor" dataType="DoorState" startBit="2"/>
+            <DataType name="RearRightDoor" dataType="DoorState" startBit="3"/>
+            <DataType name="Gear" dataType="Gear" startBit="4"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+        </DataIdentifier>
+        <DataIdentifier name="BatteryVoltage" did="0x0400" length="2">
+            <DataType name="BatteryVoltage" dataType="BatteryVoltage" startBit="7"/>
+            <ReadSession name="Extended"/>
+            <Comment>Readable only in Extended</Comment>
+        </DataIdentifier>
+        <DataIdentifier name="InteriorLight" did="0x0500" length="1">
+            <DataType name="Level" dataType="InteriorLightLevel" startBit="0"/>
+            <ReadSession name="Default"/>
+            <ReadSession name="Programming"/>
+            <ReadSession name="Extended"/>
+            <WriteSession name="Extended"/>
+            <WriteSecurityLevel name="Extended"/>
+        </DataIdentifier>
+    </DataIdentifiers>
+    <Sessions>
+        <Session name="Default" sessionType="0x01" p2="50" p2Star="5000">
+            <Comment>Normal operation after power on</Comment>
+        </Session>
+        <Session name="Programming" sessionType="0x02" p2="100" p2Star="10000">
+            <Comment>Writing the VIN</Comment>
+        </Session>
+        <Session name="Extended" sessionType="0x03" p2="50" p2Star="5000">
+            <Comment>Writing calibration data</Comment>
+        </Session>
+    </Sessions>
+    <SecurityLevels>
+        <SecurityLevel name="Extended" requestSeed="0x01" seedLength="4" keyLength="4" maxAttempts="3">
+            <AllowedSession name="Extended"/>
+            <Comment>Unlocks writing the odometer and the interior light</Comment>
+        </SecurityLevel>
+        <SecurityLevel name="Programming" requestSeed="0x11" seedLength="16" keyLength="16" maxAttempts="3">
+            <AllowedSession name="Programming"/>
+            <Comment>Unlocks writing the VIN</Comment>
+        </SecurityLevel>
+    </SecurityLevels>
+    <ResetTypes>
+        <ResetType name="Hard Reset" resetType="0x01">
+            <AllowedSession name="Default"/>
+            <AllowedSession name="Programming"/>
+            <AllowedSession name="Extended"/>
+            <Comment>Like a power cycle</Comment>
+        </ResetType>
+        <ResetType name="Soft Reset" resetType="0x03">
+            <AllowedSession name="Extended"/>
+            <Comment>Restarts the application</Comment>
+        </ResetType>
+        <ResetType name="Rapid Shutdown" resetType="0x04" powerDownTime="10">
+            <AllowedSession name="Extended"/>
+            <SecurityLevel name="Extended"/>
+            <Comment>Needs the Extended level</Comment>
+        </ResetType>
+    </ResetTypes>
+</UDScribe>

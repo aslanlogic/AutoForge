@@ -4,8 +4,7 @@
 #   FrameForge/  the database editor (GUI)
 #   usccore/     diagnostic description, .uscxml files (QtCore only)
 #   UDScribe/    the diagnostic description editor (GUI)
-#
-# The traffic analyser DiagProbe will be added here later.
+#   DiagProbe/   the diagnostic tester (GUI); uses both libraries
 
 TEMPLATE = subdirs
 
@@ -13,8 +12,10 @@ SUBDIRS = \
     ffcore \
     FrameForge \
     usccore \
-    UDScribe
+    UDScribe \
+    DiagProbe
 
 # Build each library before the program that links against it.
 FrameForge.depends = ffcore
 UDScribe.depends = usccore
+DiagProbe.depends = ffcore usccore
