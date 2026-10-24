@@ -96,7 +96,7 @@ public:
 protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        m_hoverX = event->position().x();
+        m_hoverX = event->pos().x();
         update();
     }
 
