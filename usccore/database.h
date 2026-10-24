@@ -3,6 +3,7 @@
 
 #include "network.h"
 #include "securitylevel.h"
+#include "session.h"
 
 #include <QObject>
 #include <QStringList>
@@ -12,12 +13,13 @@ namespace usc {
 
 // Owns all data of one UDScribe document, which describes exactly one ECU.
 // It knows nothing about widgets; views find out about changes through its
-// Qt signals.
+// Qt signals. It always has the default session (0x01).
 class Database : public QObject
 {
     Q_OBJECT
 
 public:
+    // Starts with only the default session.
     explicit Database(QObject *parent = nullptr);
 
     // The network: its active protocol, that protocol's settings, the
@@ -25,6 +27,25 @@ public:
     const Network &network() const;
     // Does nothing (and emits nothing) if the network is the same as the stored one.
     void setNetwork(const Network &network);
+
+    const QVector<Session> &allSessions() const;
+    QStringList sessionNames() const;
+    // nullptr if no session has this id. The pointer is only valid until the next change.
+    const Session *findSession(int id) const;
+    // Position of the session in allSessions(), or -1 if none has this id.
+    int indexOfSession(int id) const;
+
+    // Assigns a new unique id to the session, stores it and returns the id.
+    // A second default session is not added: returns 0 then.
+    int addSession(Session session);
+    // Replaces the stored session that has the same id. Returns false if there is
+    // none, or if it would make the default session another one or another one
+    // the default session.
+    // Emits nothing if it is the same as the stored one.
+    bool updateSession(const Session &session);
+    // Deletes the session. The default session is not deleted: returns false
+    // then, and also if there is no session with this id.
+    bool removeSession(int id);
 
     const QVector<SecurityLevel> &allSecurityLevels() const;
     QStringList securityLevelNames() const;
@@ -42,11 +63,20 @@ public:
     bool removeSecurityLevel(int id);
 
     // Throws away everything and stores these instead, each with a new unique id.
-    // Used when a file is opened.
-    void replaceAll(const Network &newNetwork, QVector<SecurityLevel> newSecurityLevels);
+    // Used when a file is opened. Adds the default session if newSessions has none.
+    void replaceAll(const Network &newNetwork, QVector<Session> newSessions,
+                    QVector<SecurityLevel> newSecurityLevels);
 
 signals:
     void networkChanged();
+    // Emitted before and after a session is inserted at position `index`
+    // of allSessions(). Item models need both to keep their views in sync.
+    void sessionAboutToBeAdded(int index);
+    void sessionAdded(int id);
+    void sessionChanged(int id);
+    // Emitted before and after the session at position `index` is deleted.
+    void sessionAboutToBeRemoved(int index);
+    void sessionRemoved(int id);
     // Emitted before and after a security level is inserted at position `index`
     // of allSecurityLevels(). Item models need both to keep their views in sync.
     void securityLevelAboutToBeAdded(int index);
@@ -61,6 +91,7 @@ signals:
 
 private:
     Network m_network;
+    QVector<Session> m_sessions;
     QVector<SecurityLevel> m_securityLevels;
     int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };

@@ -17,4 +17,6 @@ HEADERS += \
     database.h \
     network.h \
     securitylevel.h \
+    session.h \
+    uds.h \
     xmlstorage.h

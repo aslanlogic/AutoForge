@@ -121,15 +121,6 @@ NetworkDialog::NetworkDialog(const Network &network, QWidget *parent)
     idForm->addRow(new QLabel("The CAN ID on CAN and CAN FD, the message ID on UART and UDP.\n"
                               "Write hex with 0x in front (0x7E0) or plain decimal (2016)."));
 
-    // The largest values a DiagnosticSessionControl response can report:
-    // P2 in 1 ms steps, P2* in 10 ms steps, both as 16-bit numbers.
-    m_p2Spin = createSpin(0, 65535, " ms");
-    m_p2StarSpin = createSpin(0, 655350, " ms");
-    auto *timingGroup = new QGroupBox("Response timing");
-    auto *timingForm = new QFormLayout(timingGroup);
-    timingForm->addRow("P2 (until the first response):", m_p2Spin);
-    timingForm->addRow("P2* (after each NRC 0x78, response pending):", m_p2StarSpin);
-
     auto *protocolForm = new QFormLayout;
     protocolForm->addRow("Protocol:", m_protocolCombo);
 
@@ -139,7 +130,6 @@ NetworkDialog::NetworkDialog(const Network &network, QWidget *parent)
 
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(idGroup);
-    layout->addWidget(timingGroup);
     layout->addLayout(protocolForm);
     layout->addWidget(m_tabs);
     layout->addWidget(buttons);
@@ -147,8 +137,6 @@ NetworkDialog::NetworkDialog(const Network &network, QWidget *parent)
     // Fill in the current settings. Combo box item order matches the enum order in network.h.
     m_requestIdEdit->setText(idToText(network.requestId));
     m_responseIdEdit->setText(idToText(network.responseId));
-    m_p2Spin->setValue(network.p2);
-    m_p2StarSpin->setValue(network.p2Star);
 
     m_canBitrateCombo->setCurrentText(QString::number(network.can.bitrate));
     m_canSamplePointSpin->setValue(network.can.samplePoint);
@@ -183,7 +171,7 @@ NetworkDialog::NetworkDialog(const Network &network, QWidget *parent)
     connect(m_protocolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &NetworkDialog::onProtocolChanged);
 
-    resize(560, 720);
+    resize(560, 620);
 }
 
 Network::Protocol NetworkDialog::currentProtocol() const
@@ -199,8 +187,6 @@ Network NetworkDialog::network() const
     network.protocol = currentProtocol();
     textToId(m_requestIdEdit->text(), &network.requestId);
     textToId(m_responseIdEdit->text(), &network.responseId);
-    network.p2 = m_p2Spin->value();
-    network.p2Star = m_p2StarSpin->value();
 
     switch (network.protocol) {
     case Network::Protocol::Can:

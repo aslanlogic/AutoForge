@@ -93,10 +93,6 @@ struct Network
     // on CAN and CAN FD (see their idFormat), the message ID of the framing on UART and UDP.
     quint32 requestId = 0x7E0;  // tester -> ECU
     quint32 responseId = 0x7E8; // ECU -> tester
-
-    // Response timing of the ECU (ISO 14229-2), in ms.
-    int p2 = 50;       // P2server_max: until the first response
-    int p2Star = 5000; // P2*server_max: after each NRC 0x78 (response pending)
 };
 
 // Equal if every setting is equal. Used to tell whether an edit changed anything.
@@ -128,7 +124,7 @@ inline bool operator==(const UdpSettings &a, const UdpSettings &b)
 inline bool operator==(const Network &a, const Network &b)
 {
     return a.protocol == b.protocol && a.can == b.can && a.canFd == b.canFd && a.uart == b.uart && a.udp == b.udp
-        && a.requestId == b.requestId && a.responseId == b.responseId && a.p2 == b.p2 && a.p2Star == b.p2Star;
+        && a.requestId == b.requestId && a.responseId == b.responseId;
 }
 
 // Display names, in the same wording as the Network dialog's combo boxes.

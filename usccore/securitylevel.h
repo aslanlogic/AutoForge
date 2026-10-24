@@ -1,6 +1,8 @@
 #ifndef SECURITYLEVEL_H
 #define SECURITYLEVEL_H
 
+#include "uds.h"
+
 #include <QString>
 #include <QtGlobal>
 
@@ -42,12 +44,6 @@ inline bool isValidRequestSeed(quint8 requestSeed)
     return (requestSeed >= 0x01 && requestSeed <= 0x41)
         || requestSeed == 0x5F
         || (requestSeed >= 0x61 && requestSeed <= 0x7D);
-}
-
-// Sub-functions are shown and saved as two-digit hex: "0x01".
-inline QString subFunctionToText(quint8 subFunction)
-{
-    return "0x" + QString("%1").arg(uint(subFunction), 2, 16, QChar('0')).toUpper();
 }
 
 } // namespace usc

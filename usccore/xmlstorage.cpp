@@ -14,6 +14,53 @@ namespace {
 
 const QString FormatVersion = "1";
 
+// Reads one <Session> element. On a problem it calls reader.raiseError().
+Session readSession(QXmlStreamReader &reader)
+{
+    const QXmlStreamAttributes attributes = reader.attributes();
+    Session session;
+
+    auto integer = [&](const QString &name, int defaultValue, int minimum, int maximum) {
+        if (!attributes.hasAttribute(name))
+            return defaultValue;
+        bool ok = false;
+        const int value = attributes.value(name).toInt(&ok);
+        if (!ok || value < minimum || value > maximum)
+            reader.raiseError(QString("Session '%1': '%2' must be a whole number from %3 to %4.")
+                                  .arg(session.name, name).arg(minimum).arg(maximum));
+        return value;
+    };
+
+    session.name = attributes.value("name").toString().trimmed();
+    if (session.name.isEmpty())
+        reader.raiseError("A session has no name.");
+
+    // sessionType is written as hex ("0x01"); plain decimal is accepted too.
+    const QString sessionType = attributes.value("sessionType").toString().trimmed();
+    bool ok = false;
+    uint value = 0;
+    if (sessionType.startsWith("0x", Qt::CaseInsensitive))
+        value = sessionType.mid(2).toUInt(&ok, 16);
+    else
+        value = sessionType.toUInt(&ok, 10);
+    if (!ok || value > 0xFF || !isValidSessionType(quint8(value)))
+        reader.raiseError(QString("Session '%1': sessionType '%2' is not a valid sub-function.")
+                              .arg(session.name, sessionType));
+    session.sessionType = quint8(value);
+
+    // The largest values the positive response can report (see session.h).
+    session.p2 = integer("p2", session.p2, 0, 65535);
+    session.p2Star = integer("p2Star", session.p2Star, 0, 655350);
+
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Comment"))
+            session.comment = reader.readElementText();
+        else
+            reader.skipCurrentElement();
+    }
+    return session;
+}
+
 // Reads one <SecurityLevel> element. On a problem it calls reader.raiseError().
 SecurityLevel readSecurityLevel(QXmlStreamReader &reader)
 {
@@ -192,8 +239,8 @@ private:
     QString m_element;
 };
 
-// Reads the <Network> element: the protocol, the request/response IDs, the
-// response timing and the settings of that protocol. Settings that are missing
+// Reads the <Network> element: the protocol, the request/response IDs and the
+// settings of that protocol. Settings that are missing
 // keep their defaults.
 Network readNetwork(QXmlStreamReader &reader)
 {
@@ -202,10 +249,6 @@ Network readNetwork(QXmlStreamReader &reader)
     networkAttributes.read("protocol", &network.protocol, ProtocolWords);
     networkAttributes.read("requestId", &network.requestId);
     networkAttributes.read("responseId", &network.responseId);
-    // The largest values a DiagnosticSessionControl response can report:
-    // P2 in 1 ms steps, P2* in 10 ms steps, both as 16-bit numbers.
-    networkAttributes.read("p2", &network.p2, 0, 65535);
-    networkAttributes.read("p2Star", &network.p2Star, 0, 655350);
 
     while (!reader.hasError() && reader.readNextStartElement()) {
         const QString element = reader.name().toString();
@@ -263,8 +306,6 @@ void writeNetwork(QXmlStreamWriter &writer, const Network &network)
     writer.writeAttribute("protocol", enumToXml(network.protocol, ProtocolWords));
     writer.writeAttribute("requestId", idToText(network.requestId));
     writer.writeAttribute("responseId", idToText(network.responseId));
-    writer.writeAttribute("p2", QString::number(network.p2));
-    writer.writeAttribute("p2Star", QString::number(network.p2Star));
 
     switch (network.protocol) {
     case Network::Protocol::Can:
@@ -329,6 +370,19 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
 
     writeNetwork(writer, database.network());
 
+    writer.writeStartElement("Sessions");
+    for (const Session &session : database.allSessions()) {
+        writer.writeStartElement("Session");
+        writer.writeAttribute("name", session.name);
+        writer.writeAttribute("sessionType", subFunctionToText(session.sessionType));
+        writer.writeAttribute("p2", QString::number(session.p2));
+        writer.writeAttribute("p2Star", QString::number(session.p2Star));
+        if (!session.comment.isEmpty())
+            writer.writeTextElement("Comment", session.comment);
+        writer.writeEndElement(); // Session
+    }
+    writer.writeEndElement(); // Sessions
+
     writer.writeStartElement("SecurityLevels");
     for (const SecurityLevel &securityLevel : database.allSecurityLevels()) {
         writer.writeStartElement("SecurityLevel");
@@ -363,6 +417,9 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
 
     QXmlStreamReader reader(&file);
     Network loadedNetwork; // the defaults (CAN), if the file has no <Network>
+    QVector<Session> loadedSessions; // the default session is added if missing (old files)
+    QSet<QString> sessionNames;
+    QSet<quint8> sessionTypes;
     QVector<SecurityLevel> loadedSecurityLevels;
     QSet<QString> securityLevelNames;
     QSet<quint8> requestSeeds;
@@ -379,6 +436,22 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     while (!reader.hasError() && reader.readNextStartElement()) {
         if (reader.name() == QLatin1String("Network")) {
             loadedNetwork = readNetwork(reader);
+        } else if (reader.name() == QLatin1String("Sessions")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("Session")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                const Session session = readSession(reader);
+                if (!reader.hasError() && sessionNames.contains(session.name))
+                    reader.raiseError(QString("There are two sessions named '%1'.").arg(session.name));
+                if (!reader.hasError() && sessionTypes.contains(session.sessionType))
+                    reader.raiseError(QString("There are two sessions with sessionType %1.")
+                                          .arg(subFunctionToText(session.sessionType)));
+                sessionNames.insert(session.name);
+                sessionTypes.insert(session.sessionType);
+                loadedSessions.append(session);
+            }
         } else if (reader.name() == QLatin1String("SecurityLevels")) {
             while (!reader.hasError() && reader.readNextStartElement()) {
                 if (reader.name() != QLatin1String("SecurityLevel")) {
@@ -405,7 +478,7 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         return false;
     }
 
-    database.replaceAll(loadedNetwork, loadedSecurityLevels);
+    database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels);
     return true;
 }
 

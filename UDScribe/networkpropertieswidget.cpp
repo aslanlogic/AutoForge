@@ -83,8 +83,6 @@ void NetworkPropertiesWidget::showNetwork(const Database &database, const QStrin
         {"File", filePath.isEmpty() ? "(not saved yet)" : filePath},
         {"Request ID", idToText(network.requestId) + "  (tester -> ECU)"},
         {"Response ID", idToText(network.responseId) + "  (ECU -> tester)"},
-        {"P2", QString("%1 ms").arg(network.p2)},
-        {"P2*", QString("%1 ms").arg(network.p2Star)},
         {"Protocol", toString(network.protocol)},
     };
     rows += protocolRows(network);

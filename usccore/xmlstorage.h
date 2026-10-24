@@ -11,9 +11,14 @@ class Database;
 //
 //   <?xml version="1.0" encoding="UTF-8"?>
 //   <UDScribe version="1">
-//     <Network protocol="can" requestId="0x7E0" responseId="0x7E8" p2="50" p2Star="5000">
+//     <Network protocol="can" requestId="0x7E0" responseId="0x7E8">
 //       <Can bitrate="500000" samplePoint="87.5" idFormat="standard"/>  (only the active protocol's settings)
 //     </Network>
+//     <Sessions>                                     (always has the default session, 0x01)
+//       <Session name="Default" sessionType="0x01" p2="50" p2Star="5000">
+//         <Comment>Normal operation</Comment>
+//       </Session>
+//     </Sessions>
 //     <SecurityLevels>
 //       <SecurityLevel name="Extended" requestSeed="0x01" seedLength="4" keyLength="4" maxAttempts="3">
 //         <Comment>Unlocks writing of calibration data</Comment>

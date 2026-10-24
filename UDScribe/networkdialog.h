@@ -15,7 +15,7 @@ class QWidget;
 
 using namespace usc;
 
-// Edits the network: the request/response IDs, the response timing, and a
+// Edits the network: the request/response IDs and a
 // "Protocol" box that chooses the one active protocol; only that protocol's tab
 // (CAN, CAN FD, UART or UDP) can be edited.
 // OK is refused if the IDs do not fit the chosen settings (e.g. 0x18DA10F1 with
@@ -27,7 +27,7 @@ class NetworkDialog : public QDialog
 public:
     explicit NetworkDialog(const Network &network, QWidget *parent = nullptr);
 
-    // The IDs, the timing and the chosen protocol with its settings; the other
+    // The IDs and the chosen protocol with its settings; the other
     // protocols keep their defaults.
     Network network() const;
 
@@ -50,8 +50,6 @@ private:
     QComboBox *m_protocolCombo = nullptr;
     QLineEdit *m_requestIdEdit = nullptr;
     QLineEdit *m_responseIdEdit = nullptr;
-    QSpinBox *m_p2Spin = nullptr;
-    QSpinBox *m_p2StarSpin = nullptr;
     QTabWidget *m_tabs = nullptr; // one tab per protocol, in Network::Protocol order
 
     // CAN tab

@@ -12,7 +12,7 @@ class QTableWidget;
 using namespace usc;
 
 // Read-only overview of the network, shown when "Network" is clicked: the
-// request/response IDs, the response timing, the protocol and its settings.
+// request/response IDs, the protocol and its settings.
 class NetworkPropertiesWidget : public QWidget
 {
     Q_OBJECT
