@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- a small two-column table: value | description -->
+  <rect x="1.5" y="2.5" width="13" height="11" rx="1" fill="#e3f2f1" stroke="#2a8c84" stroke-width="1.4"/>
+  <path d="M1.5 6h13M1.5 9.5h13M5.5 2.5v11" stroke="#2a8c84" stroke-width="1.2"/>
+</svg>

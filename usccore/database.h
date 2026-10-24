@@ -1,10 +1,13 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
+#include "dataidentifier.h"
+#include "datatype.h"
 #include "network.h"
 #include "resettype.h"
 #include "securitylevel.h"
 #include "session.h"
+#include "valuetable.h"
 
 #include <QObject>
 #include <QStringList>
@@ -44,13 +47,14 @@ public:
     // the default session.
     // Emits nothing if it is the same as the stored one.
     bool updateSession(const Session &session);
-    // Deletes the session. The default session and a session that a security level
-    // or reset type is still allowed in are not deleted: returns false then, and
-    // also if there is no session with this id.
+    // Deletes the session. The default session and a session that a security level,
+    // reset type or DID still uses are not deleted: returns false then, and also if
+    // there is no session with this id.
     bool removeSession(int id);
-    // Names of the security levels / reset types that are allowed in this session.
+    // Names of the security levels / reset types / DIDs that use this session.
     QStringList securityLevelsUsingSession(int id) const;
     QStringList resetTypesUsingSession(int id) const;
+    QStringList dataIdentifiersUsingSession(int id) const;
 
     const QVector<SecurityLevel> &allSecurityLevels() const;
     QStringList securityLevelNames() const;
@@ -64,11 +68,54 @@ public:
     // Replaces the stored security level that has the same id. Returns false if there is none.
     // Emits nothing if it is the same as the stored one.
     bool updateSecurityLevel(const SecurityLevel &securityLevel);
-    // Deletes the security level. One that a reset type still needs is not
+    // Deletes the security level. One that a reset type or DID still needs is not
     // deleted: returns false then, and also if there is none with this id.
     bool removeSecurityLevel(int id);
-    // Names of the reset types that this security level allows.
+    // Names of the reset types / DIDs that this security level allows.
     QStringList resetTypesUsingSecurityLevel(int id) const;
+    QStringList dataIdentifiersUsingSecurityLevel(int id) const;
+
+    // Value tables: same idea as the security level functions above.
+    const QVector<ValueTable> &allValueTables() const;
+    QStringList valueTableNames() const;
+    const ValueTable *findValueTable(int id) const;
+    int indexOfValueTable(int id) const;
+    int addValueTable(ValueTable valueTable);
+    bool updateValueTable(const ValueTable &valueTable);
+    // Deletes the value table. One that a data type still uses is not deleted:
+    // returns false then, and also if there is none with this id.
+    bool removeValueTable(int id);
+    // Names of the data types that use this value table.
+    QStringList dataTypesUsingValueTable(int id) const;
+
+    // Data types: same idea again.
+    const QVector<DataType> &allDataTypes() const;
+    QStringList dataTypeNames() const;
+    const DataType *findDataType(int id) const;
+    int indexOfDataType(int id) const;
+    int addDataType(DataType dataType);
+    // Also returns false (and changes nothing) if a DID that places the data type
+    // would no longer fit; checkDataTypeChange() says why.
+    bool updateDataType(const DataType &dataType);
+    // Empty if every DID that places this data type still fits with it as given,
+    // otherwise what is wrong.
+    QString checkDataTypeChange(const DataType &dataType) const;
+    // Deletes the data type. One that a DID still places is not deleted: returns
+    // false then, and also if there is none with this id.
+    bool removeDataType(int id);
+    // Names of the DIDs that place this data type.
+    QStringList dataIdentifiersUsingDataType(int id) const;
+    // Every data type by id, as checkDataTypeLayout() wants it.
+    QHash<int, DataType> dataTypesById() const;
+
+    // DIDs: same idea as the security level functions above.
+    const QVector<DataIdentifier> &allDataIdentifiers() const;
+    QStringList dataIdentifierNames() const;
+    const DataIdentifier *findDataIdentifier(int id) const;
+    int indexOfDataIdentifier(int id) const;
+    int addDataIdentifier(DataIdentifier dataIdentifier);
+    bool updateDataIdentifier(const DataIdentifier &dataIdentifier);
+    bool removeDataIdentifier(int id);
 
     // Reset types: same idea as the security level functions above.
     const QVector<ResetType> &allResetTypes() const;
@@ -81,11 +128,13 @@ public:
 
     // Throws away everything and stores these instead, each with a new unique id.
     // Used when a file is opened. Adds the default session if newSessions has none.
-    // The sessions and security levels must come with ids that are unique among
-    // their kind; the references to them (sessionIds, securityLevelIds) are
-    // renumbered along with them, unknown ones are dropped.
+    // The sessions, security levels, value tables and data types must come with ids
+    // that are unique among their kind; the references to them are renumbered along
+    // with them, unknown ones are dropped (a DID's placement of an unknown data type too).
     void replaceAll(const Network &newNetwork, QVector<Session> newSessions,
-                    QVector<SecurityLevel> newSecurityLevels, QVector<ResetType> newResetTypes);
+                    QVector<SecurityLevel> newSecurityLevels, QVector<ResetType> newResetTypes,
+                    QVector<ValueTable> newValueTables, QVector<DataType> newDataTypes,
+                    QVector<DataIdentifier> newDataIdentifiers);
 
 signals:
     void networkChanged();
@@ -105,6 +154,21 @@ signals:
     // Emitted before and after the security level at position `index` is deleted.
     void securityLevelAboutToBeRemoved(int index);
     void securityLevelRemoved(int id);
+    void valueTableAboutToBeAdded(int index);
+    void valueTableAdded(int id);
+    void valueTableChanged(int id);
+    void valueTableAboutToBeRemoved(int index);
+    void valueTableRemoved(int id);
+    void dataTypeAboutToBeAdded(int index);
+    void dataTypeAdded(int id);
+    void dataTypeChanged(int id);
+    void dataTypeAboutToBeRemoved(int index);
+    void dataTypeRemoved(int id);
+    void dataIdentifierAboutToBeAdded(int index);
+    void dataIdentifierAdded(int id);
+    void dataIdentifierChanged(int id);
+    void dataIdentifierAboutToBeRemoved(int index);
+    void dataIdentifierRemoved(int id);
     void resetTypeAboutToBeAdded(int index);
     void resetTypeAdded(int id);
     void resetTypeChanged(int id);
@@ -119,6 +183,9 @@ private:
     QVector<Session> m_sessions;
     QVector<SecurityLevel> m_securityLevels;
     QVector<ResetType> m_resetTypes;
+    QVector<ValueTable> m_valueTables;
+    QVector<DataType> m_dataTypes;
+    QVector<DataIdentifier> m_dataIdentifiers;
     int m_nextId = 1; // shared by all kinds of objects, so every id is unique
 };
 

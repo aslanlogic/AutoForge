@@ -1,4 +1,10 @@
 #include "mainwindow.h"
+#include "dataidentifierdialog.h"
+#include "dataidentifierpropertieswidget.h"
+#include "dataidentifiertablemodel.h"
+#include "datatypedialog.h"
+#include "datatypepropertieswidget.h"
+#include "datatypetablemodel.h"
 #include "navigationmodel.h"
 #include "networkdialog.h"
 #include "networkpropertieswidget.h"
@@ -11,6 +17,9 @@
 #include "sessiondialog.h"
 #include "sessionpropertieswidget.h"
 #include "sessiontablemodel.h"
+#include "valuetabledialog.h"
+#include "valuetablepropertieswidget.h"
+#include "valuetabletablemodel.h"
 #include "usccore/database.h"
 #include "usccore/xmlstorage.h"
 
@@ -39,6 +48,17 @@ QVector<quint8> sessionTypesUsedByOthers(const Database &database, int id)
             sessionTypes.append(session.sessionType);
     }
     return sessionTypes;
+}
+
+// The DID numbers of all DIDs except the one with this id.
+QVector<quint16> didsUsedByOthers(const Database &database, int id)
+{
+    QVector<quint16> dids;
+    for (const DataIdentifier &dataIdentifier : database.allDataIdentifiers()) {
+        if (dataIdentifier.id != id)
+            dids.append(dataIdentifier.did);
+    }
+    return dids;
 }
 
 // The resetType sub-functions of all reset types except the one with this id.
@@ -85,6 +105,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_database, &Database::resetTypeAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::resetTypeChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::resetTypeRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::valueTableRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataIdentifierAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataIdentifierChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataIdentifierRemoved, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataTypeAdded, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataTypeChanged, this, [this] { setWindowModified(true); });
+    connect(m_database, &Database::dataTypeRemoved, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelAdded, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelChanged, this, [this] { setWindowModified(true); });
     connect(m_database, &Database::securityLevelRemoved, this, [this] { setWindowModified(true); });
@@ -138,6 +167,15 @@ void MainWindow::setupLayout()
     m_securityLevelTable = createSortableTable(m_securityLevelTableModel, SecurityLevelTableModel::SortRole);
     m_networkProperties = new NetworkPropertiesWidget;
     m_securityLevelProperties = new SecurityLevelPropertiesWidget;
+    m_valueTableTableModel = new ValueTableTableModel(m_database, this);
+    m_valueTableTable = createSortableTable(m_valueTableTableModel, ValueTableTableModel::SortRole);
+    m_valueTableProperties = new ValueTablePropertiesWidget;
+    m_dataTypeTableModel = new DataTypeTableModel(m_database, this);
+    m_dataTypeTable = createSortableTable(m_dataTypeTableModel, DataTypeTableModel::SortRole);
+    m_dataTypeProperties = new DataTypePropertiesWidget;
+    m_dataIdentifierTableModel = new DataIdentifierTableModel(m_database, this);
+    m_dataIdentifierTable = createSortableTable(m_dataIdentifierTableModel, DataIdentifierTableModel::SortRole);
+    m_dataIdentifierProperties = new DataIdentifierPropertiesWidget;
     m_rightPane->addWidget(m_emptyPage);
     m_rightPane->addWidget(m_networkProperties);
     m_rightPane->addWidget(m_sessionTable);
@@ -146,6 +184,12 @@ void MainWindow::setupLayout()
     m_rightPane->addWidget(m_resetTypeProperties);
     m_rightPane->addWidget(m_securityLevelTable);
     m_rightPane->addWidget(m_securityLevelProperties);
+    m_rightPane->addWidget(m_valueTableTable);
+    m_rightPane->addWidget(m_valueTableProperties);
+    m_rightPane->addWidget(m_dataTypeTable);
+    m_rightPane->addWidget(m_dataTypeProperties);
+    m_rightPane->addWidget(m_dataIdentifierTable);
+    m_rightPane->addWidget(m_dataIdentifierProperties);
     connect(m_navigationTree->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &MainWindow::onCurrentNavigationChanged);
 
@@ -158,6 +202,21 @@ void MainWindow::setupLayout()
     connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshResetTypeProperties);       // names
     connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshResetTypeProperties); // names
     connect(m_database, &Database::securityLevelChanged, this, &MainWindow::refreshSecurityLevelProperties);
+    connect(m_database, &Database::valueTableChanged, this, &MainWindow::refreshValueTableProperties);
+    connect(m_database, &Database::valueTableRemoved, this, &MainWindow::refreshValueTableProperties);
+    // A value table's page lists its data types; a data type's page shows its value table's name.
+    connect(m_database, &Database::dataTypeAdded, this, &MainWindow::refreshValueTableProperties);
+    connect(m_database, &Database::dataTypeChanged, this, &MainWindow::refreshValueTableProperties);
+    connect(m_database, &Database::dataTypeRemoved, this, &MainWindow::refreshValueTableProperties);
+    connect(m_database, &Database::dataTypeChanged, this, &MainWindow::refreshDataTypeProperties);
+    connect(m_database, &Database::dataTypeRemoved, this, &MainWindow::refreshDataTypeProperties);
+    connect(m_database, &Database::valueTableChanged, this, &MainWindow::refreshDataTypeProperties);
+    // A data type's page lists its DIDs; a DID's page shows names of data types, sessions and levels.
+    for (auto change : {&Database::dataIdentifierAdded, &Database::dataIdentifierChanged, &Database::dataIdentifierRemoved})
+        connect(m_database, change, this, &MainWindow::refreshDataTypeProperties);
+    for (auto change : {&Database::dataIdentifierChanged, &Database::dataIdentifierRemoved, &Database::dataTypeChanged,
+                        &Database::sessionChanged, &Database::securityLevelChanged})
+        connect(m_database, change, this, &MainWindow::refreshDataIdentifierProperties);
     connect(m_database, &Database::sessionChanged, this, &MainWindow::refreshSecurityLevelProperties); // session names
     connect(m_database, &Database::securityLevelRemoved, this, &MainWindow::refreshSecurityLevelProperties);
     // New and Open renumber all ids and leave nothing selected in the tree: start empty.
@@ -165,6 +224,9 @@ void MainWindow::setupLayout()
         m_shownSessionId = 0;
         m_shownResetTypeId = 0;
         m_shownSecurityLevelId = 0;
+        m_shownValueTableId = 0;
+        m_shownDataTypeId = 0;
+        m_shownDataIdentifierId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     });
 
@@ -229,12 +291,24 @@ void MainWindow::showNavigationContextMenu(const QPoint &pos)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewResetType);
         else if (index.row() == NavigationModel::SecurityAccess)
             menu.addAction(newIcon, "Add...", this, &MainWindow::createNewSecurityLevel);
+        else if (index.row() == NavigationModel::ValueTables)
+            menu.addAction(newIcon, "Add...", this, &MainWindow::createNewValueTable);
+        else if (index.row() == NavigationModel::DataTypes)
+            menu.addAction(newIcon, "Add...", this, &MainWindow::createNewDataType);
+        else if (index.row() == NavigationModel::DataIdentifiers)
+            menu.addAction(newIcon, "Add...", this, &MainWindow::createNewDataIdentifier);
     } else if (kind == NavigationModel::SessionItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSession(id); });
     } else if (kind == NavigationModel::ResetTypeItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteResetType(id); });
     } else if (kind == NavigationModel::SecurityLevelItem) {
         menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteSecurityLevel(id); });
+    } else if (kind == NavigationModel::ValueTableItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteValueTable(id); });
+    } else if (kind == NavigationModel::DataTypeItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteDataType(id); });
+    } else if (kind == NavigationModel::DataIdentifierItem) {
+        menu.addAction(deleteIcon, "Delete", this, [this, id] { deleteDataIdentifier(id); });
     }
 
     if (!menu.isEmpty())
@@ -258,6 +332,15 @@ void MainWindow::onNavigationDoubleClicked(const QModelIndex &index)
     case NavigationModel::SecurityLevelItem:
         editSecurityLevel(id);
         break;
+    case NavigationModel::ValueTableItem:
+        editValueTable(id);
+        break;
+    case NavigationModel::DataTypeItem:
+        editDataType(id);
+        break;
+    case NavigationModel::DataIdentifierItem:
+        editDataIdentifier(id);
+        break;
     }
 }
 
@@ -267,6 +350,9 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
     m_shownSessionId = 0;
     m_shownResetTypeId = 0;
     m_shownSecurityLevelId = 0;
+    m_shownValueTableId = 0;
+    m_shownDataTypeId = 0;
+    m_shownDataIdentifierId = 0;
     switch (current.data(NavigationModel::ItemKindRole).toInt()) {
     case NavigationModel::Heading:
         if (current.row() == NavigationModel::Network) {
@@ -286,6 +372,18 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
             m_rightPane->setCurrentWidget(m_securityLevelTable);
             return;
         }
+        if (current.row() == NavigationModel::ValueTables) {
+            m_rightPane->setCurrentWidget(m_valueTableTable);
+            return;
+        }
+        if (current.row() == NavigationModel::DataTypes) {
+            m_rightPane->setCurrentWidget(m_dataTypeTable);
+            return;
+        }
+        if (current.row() == NavigationModel::DataIdentifiers) {
+            m_rightPane->setCurrentWidget(m_dataIdentifierTable);
+            return;
+        }
         break;
     case NavigationModel::SessionItem:
         m_shownSessionId = current.data(NavigationModel::ObjectIdRole).toInt();
@@ -298,6 +396,18 @@ void MainWindow::onCurrentNavigationChanged(const QModelIndex &current)
     case NavigationModel::SecurityLevelItem:
         m_shownSecurityLevelId = current.data(NavigationModel::ObjectIdRole).toInt();
         refreshSecurityLevelProperties();
+        return;
+    case NavigationModel::ValueTableItem:
+        m_shownValueTableId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshValueTableProperties();
+        return;
+    case NavigationModel::DataTypeItem:
+        m_shownDataTypeId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshDataTypeProperties();
+        return;
+    case NavigationModel::DataIdentifierItem:
+        m_shownDataIdentifierId = current.data(NavigationModel::ObjectIdRole).toInt();
+        refreshDataIdentifierProperties();
         return;
     }
     m_rightPane->setCurrentWidget(m_emptyPage);
@@ -341,6 +451,48 @@ void MainWindow::refreshSecurityLevelProperties()
         m_rightPane->setCurrentWidget(m_securityLevelProperties);
     } else {
         m_shownSecurityLevelId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    }
+}
+
+void MainWindow::refreshValueTableProperties()
+{
+    if (m_shownValueTableId == 0)
+        return; // no value table is shown
+
+    if (const ValueTable *valueTable = m_database->findValueTable(m_shownValueTableId)) {
+        m_valueTableProperties->showValueTable(*valueTable, *m_database);
+        m_rightPane->setCurrentWidget(m_valueTableProperties);
+    } else {
+        m_shownValueTableId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    }
+}
+
+void MainWindow::refreshDataTypeProperties()
+{
+    if (m_shownDataTypeId == 0)
+        return; // no data type is shown
+
+    if (const DataType *dataType = m_database->findDataType(m_shownDataTypeId)) {
+        m_dataTypeProperties->showDataType(*dataType, *m_database);
+        m_rightPane->setCurrentWidget(m_dataTypeProperties);
+    } else {
+        m_shownDataTypeId = 0;
+        m_rightPane->setCurrentWidget(m_emptyPage);
+    }
+}
+
+void MainWindow::refreshDataIdentifierProperties()
+{
+    if (m_shownDataIdentifierId == 0)
+        return; // no DID is shown
+
+    if (const DataIdentifier *dataIdentifier = m_database->findDataIdentifier(m_shownDataIdentifierId)) {
+        m_dataIdentifierProperties->showDataIdentifier(*dataIdentifier, *m_database);
+        m_rightPane->setCurrentWidget(m_dataIdentifierProperties);
+    } else {
+        m_shownDataIdentifierId = 0;
         m_rightPane->setCurrentWidget(m_emptyPage);
     }
 }
@@ -425,6 +577,8 @@ void MainWindow::deleteSession(int id)
         usedBy << name + " (security level)";
     for (const QString &name : m_database->resetTypesUsingSession(id))
         usedBy << name + " (reset type)";
+    for (const QString &name : m_database->dataIdentifiersUsingSession(id))
+        usedBy << name + " (DID)";
     if (!usedBy.isEmpty()) {
         QMessageBox::information(this, "Delete Session",
                                  QString("The session '%1' cannot be deleted because these are "
@@ -499,6 +653,190 @@ void MainWindow::deleteResetType(int id)
         m_database->removeResetType(id);
 }
 
+void MainWindow::createNewDataIdentifier()
+{
+    const QStringList existingNames = m_database->dataIdentifierNames();
+    const QVector<quint16> usedDids = didsUsedByOthers(*m_database, 0);
+
+    // Pick the first free default name: New_DID_1, New_DID_2, ...
+    DataIdentifier newDataIdentifier;
+    int number = 1;
+    do {
+        newDataIdentifier.name = QString("New_DID_%1").arg(number++);
+    } while (existingNames.contains(newDataIdentifier.name));
+
+    // And the first free DID from 0x0100, the start of the vehicle manufacturer range.
+    for (int did = 0x0100; did <= 0xFFFF; ++did) {
+        if (!usedDids.contains(quint16(did))) {
+            newDataIdentifier.did = quint16(did);
+            break;
+        }
+    }
+
+    DataIdentifierDialog dialog(newDataIdentifier, existingNames, usedDids, m_database->allDataTypes(),
+                                m_database->allSessions(), m_database->allSecurityLevels(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addDataIdentifier(dialog.dataIdentifier());
+}
+
+void MainWindow::editDataIdentifier(int id)
+{
+    const DataIdentifier *stored = m_database->findDataIdentifier(id);
+    if (!stored)
+        return;
+    const DataIdentifier dataIdentifier = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->dataIdentifierNames();
+    otherNames.removeOne(dataIdentifier.name);
+
+    DataIdentifierDialog dialog(dataIdentifier, otherNames, didsUsedByOthers(*m_database, id),
+                                m_database->allDataTypes(), m_database->allSessions(),
+                                m_database->allSecurityLevels(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateDataIdentifier(dialog.dataIdentifier());
+}
+
+void MainWindow::deleteDataIdentifier(int id)
+{
+    const DataIdentifier *dataIdentifier = m_database->findDataIdentifier(id);
+    if (!dataIdentifier)
+        return;
+
+    const QString question = QString("Delete the DID '%1 %2'?").arg(didToText(dataIdentifier->did), dataIdentifier->name);
+    if (QMessageBox::question(this, "Delete DID", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeDataIdentifier(id);
+}
+
+void MainWindow::createNewDataType()
+{
+    const QStringList existingNames = m_database->dataTypeNames();
+
+    // Pick the first free default name: New_DataType_1, New_DataType_2, ...
+    DataType newDataType;
+    int number = 1;
+    do {
+        newDataType.name = QString("New_DataType_%1").arg(number++);
+    } while (existingNames.contains(newDataType.name));
+
+    DataTypeDialog dialog(newDataType, existingNames, m_database->allValueTables(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addDataType(dialog.dataType());
+}
+
+void MainWindow::editDataType(int id)
+{
+    const DataType *stored = m_database->findDataType(id);
+    if (!stored)
+        return;
+    const DataType dataType = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->dataTypeNames();
+    otherNames.removeOne(dataType.name);
+
+    // A change that makes a DID's data types overlap or not fit is refused (Database
+    // refuses it too); the dialog opens again with the edits, so they are not lost.
+    DataType edited = dataType;
+    for (;;) {
+        DataTypeDialog dialog(edited, otherNames, m_database->allValueTables(), this);
+        if (dialog.exec() != QDialog::Accepted)
+            return;
+        edited = dialog.dataType();
+        const QString error = m_database->checkDataTypeChange(edited);
+        if (error.isEmpty())
+            break;
+        QMessageBox::warning(this, "Data Type", QString("This change does not fit a DID that places the data type:\n%1")
+                                                    .arg(error));
+    }
+
+    m_database->updateDataType(edited);
+}
+
+void MainWindow::deleteDataType(int id)
+{
+    const DataType *dataType = m_database->findDataType(id);
+    if (!dataType)
+        return;
+
+    // A data type that a DID places cannot be deleted (Database refuses it too).
+    const QStringList usedBy = m_database->dataIdentifiersUsingDataType(id);
+    if (!usedBy.isEmpty()) {
+        QMessageBox::information(this, "Delete Data Type",
+                                 QString("The data type '%1' cannot be deleted because these DIDs "
+                                         "place it:\n%2\n\nRemove it from them first.")
+                                     .arg(dataType->name, usedBy.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the data type '%1'?").arg(dataType->name);
+    if (QMessageBox::question(this, "Delete Data Type", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeDataType(id);
+}
+
+void MainWindow::createNewValueTable()
+{
+    const QStringList existingNames = m_database->valueTableNames();
+
+    // Pick the first free default name: New_ValueTable_1, New_ValueTable_2, ...
+    ValueTable newValueTable;
+    int number = 1;
+    do {
+        newValueTable.name = QString("New_ValueTable_%1").arg(number++);
+    } while (existingNames.contains(newValueTable.name));
+
+    ValueTableDialog dialog(newValueTable, existingNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->addValueTable(dialog.valueTable());
+}
+
+void MainWindow::editValueTable(int id)
+{
+    const ValueTable *stored = m_database->findValueTable(id);
+    if (!stored)
+        return;
+    const ValueTable valueTable = *stored; // copy: the pointer is only valid until the next change
+
+    QStringList otherNames = m_database->valueTableNames();
+    otherNames.removeOne(valueTable.name);
+
+    ValueTableDialog dialog(valueTable, otherNames, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_database->updateValueTable(dialog.valueTable());
+}
+
+void MainWindow::deleteValueTable(int id)
+{
+    const ValueTable *valueTable = m_database->findValueTable(id);
+    if (!valueTable)
+        return;
+
+    // A value table that a data type uses cannot be deleted (Database refuses it too).
+    const QStringList usedBy = m_database->dataTypesUsingValueTable(id);
+    if (!usedBy.isEmpty()) {
+        QMessageBox::information(this, "Delete Value Table",
+                                 QString("The value table '%1' cannot be deleted because these "
+                                         "data types use it:\n%2\n\nChoose another value table for them first.")
+                                     .arg(valueTable->name, usedBy.join(", ")));
+        return;
+    }
+
+    const QString question = QString("Delete the value table '%1'?").arg(valueTable->name);
+    if (QMessageBox::question(this, "Delete Value Table", question,
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes)
+        m_database->removeValueTable(id);
+}
+
 void MainWindow::createNewSecurityLevel()
 {
     const QStringList existingNames = m_database->securityLevelNames();
@@ -554,11 +892,15 @@ void MainWindow::deleteSecurityLevel(int id)
     const QString label = subFunctionToText(securityLevel->requestSeed) + ' ' + securityLevel->name;
 
     // A security level that a reset type needs cannot be deleted (Database refuses it too).
-    const QStringList usedBy = m_database->resetTypesUsingSecurityLevel(id);
+    QStringList usedBy;
+    for (const QString &name : m_database->resetTypesUsingSecurityLevel(id))
+        usedBy << name + " (reset type)";
+    for (const QString &name : m_database->dataIdentifiersUsingSecurityLevel(id))
+        usedBy << name + " (DID)";
     if (!usedBy.isEmpty()) {
         QMessageBox::information(this, "Delete Security Level",
                                  QString("The security level '%1' cannot be deleted because these "
-                                         "reset types need it:\n%2\n\nRemove it from them first.")
+                                         "need it:\n%2\n\nRemove it from them first.")
                                      .arg(label, usedBy.join(", ")));
         return;
     }
@@ -580,7 +922,7 @@ void MainWindow::newFile()
     if (!maybeSave())
         return;
 
-    m_database->replaceAll(Network(), {}, {}, {});
+    m_database->replaceAll(Network(), {}, {}, {}, {}, {}, {});
     setCurrentFilePath(QString());
     setWindowModified(false);
 }

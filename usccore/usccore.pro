@@ -15,9 +15,12 @@ SOURCES += \
 
 HEADERS += \
     database.h \
+    dataidentifier.h \
+    datatype.h \
     network.h \
     resettype.h \
     securitylevel.h \
     session.h \
     uds.h \
+    valuetable.h \
     xmlstorage.h

@@ -1,8 +1,11 @@
 <RCC>
     <qresource prefix="/">
+        <file>icons/dataidentifiers.svg</file>
+        <file>icons/datatypes.svg</file>
         <file>icons/ecureset.svg</file>
         <file>icons/network.svg</file>
         <file>icons/securityaccess.svg</file>
         <file>icons/session.svg</file>
+        <file>icons/valuetables.svg</file>
     </qresource>
 </RCC>

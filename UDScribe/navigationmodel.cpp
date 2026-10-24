@@ -71,6 +71,57 @@ NavigationModel::NavigationModel(Database *database, QObject *parent)
         endRemoveRows();
     });
 
+    connect(m_database, &Database::valueTableAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(ValueTables), index, index);
+    });
+    connect(m_database, &Database::valueTableAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::valueTableChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfValueTable(id), 0, categoryIndex(ValueTables));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::valueTableAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(ValueTables), index, index);
+    });
+    connect(m_database, &Database::valueTableRemoved, this, [this] {
+        endRemoveRows();
+    });
+
+    connect(m_database, &Database::dataTypeAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(DataTypes), index, index);
+    });
+    connect(m_database, &Database::dataTypeAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::dataTypeChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfDataType(id), 0, categoryIndex(DataTypes));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::dataTypeAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(DataTypes), index, index);
+    });
+    connect(m_database, &Database::dataTypeRemoved, this, [this] {
+        endRemoveRows();
+    });
+
+    connect(m_database, &Database::dataIdentifierAboutToBeAdded, this, [this](int index) {
+        beginInsertRows(categoryIndex(DataIdentifiers), index, index);
+    });
+    connect(m_database, &Database::dataIdentifierAdded, this, [this] {
+        endInsertRows();
+    });
+    connect(m_database, &Database::dataIdentifierChanged, this, [this](int id) {
+        const QModelIndex changed = index(m_database->indexOfDataIdentifier(id), 0, categoryIndex(DataIdentifiers));
+        emit dataChanged(changed, changed);
+    });
+    connect(m_database, &Database::dataIdentifierAboutToBeRemoved, this, [this](int index) {
+        beginRemoveRows(categoryIndex(DataIdentifiers), index, index);
+    });
+    connect(m_database, &Database::dataIdentifierRemoved, this, [this] {
+        endRemoveRows();
+    });
+
     connect(m_database, &Database::aboutToBeReset, this, &NavigationModel::beginResetModel);
     connect(m_database, &Database::wasReset, this, &NavigationModel::endResetModel);
 }
@@ -108,6 +159,9 @@ int NavigationModel::rowCount(const QModelIndex &parent) const
     case DiagnosticSessionControl: return m_database->allSessions().size();
     case EcuReset:                 return m_database->allResetTypes().size();
     case SecurityAccess:           return m_database->allSecurityLevels().size();
+    case ValueTables:              return m_database->allValueTables().size();
+    case DataTypes:                return m_database->allDataTypes().size();
+    case DataIdentifiers:          return m_database->allDataIdentifiers().size();
     }
     return 0;
 }
@@ -125,9 +179,11 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
     // Icons are compiled into the program from resources.qrc.
     if (isHeading(index)) {
         static const char *const headings[CategoryCount] = {
-            "Network", "0x10 DiagnosticSessionControl", "0x11 ECUReset", "0x27 SecurityAccess"};
+            "Network", "0x10 DiagnosticSessionControl", "0x11 ECUReset", "0x27 SecurityAccess", "Value Tables",
+            "Data Types", "Data Identifiers"};
         static const char *const icons[CategoryCount] = {
-            ":/icons/network.svg", ":/icons/session.svg", ":/icons/ecureset.svg", ":/icons/securityaccess.svg"};
+            ":/icons/network.svg", ":/icons/session.svg", ":/icons/ecureset.svg", ":/icons/securityaccess.svg",
+            ":/icons/valuetables.svg", ":/icons/datatypes.svg", ":/icons/dataidentifiers.svg"};
         switch (role) {
         case Qt::DisplayRole:    return QString(headings[index.row()]);
         case Qt::DecorationRole: return QIcon(icons[index.row()]);
@@ -159,6 +215,22 @@ QVariant NavigationModel::data(const QModelIndex &index, int role) const
         const SecurityLevel &securityLevel = m_database->allSecurityLevels().at(index.row());
         name = subFunctionToText(securityLevel.requestSeed) + ' ' + securityLevel.name; icon = ":/icons/securityaccess.svg"; kind = SecurityLevelItem;
         id = securityLevel.id;
+        break;
+    }
+    case ValueTables: {
+        const ValueTable &valueTable = m_database->allValueTables().at(index.row());
+        name = valueTable.name; icon = ":/icons/valuetables.svg"; kind = ValueTableItem; id = valueTable.id;
+        break;
+    }
+    case DataTypes: {
+        const DataType &dataType = m_database->allDataTypes().at(index.row());
+        name = dataType.name; icon = ":/icons/datatypes.svg"; kind = DataTypeItem; id = dataType.id;
+        break;
+    }
+    case DataIdentifiers: {
+        const DataIdentifier &dataIdentifier = m_database->allDataIdentifiers().at(index.row());
+        name = didToText(dataIdentifier.did) + ' ' + dataIdentifier.name; icon = ":/icons/dataidentifiers.svg";
+        kind = DataIdentifierItem; id = dataIdentifier.id;
         break;
     }
     }

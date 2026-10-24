@@ -7,6 +7,10 @@ namespace usc {
 class Database;
 } // namespace usc
 
+class DataIdentifierPropertiesWidget;
+class DataIdentifierTableModel;
+class DataTypePropertiesWidget;
+class DataTypeTableModel;
 class NavigationModel;
 class NetworkPropertiesWidget;
 class QAbstractItemModel;
@@ -20,6 +24,8 @@ class SecurityLevelPropertiesWidget;
 class SecurityLevelTableModel;
 class SessionPropertiesWidget;
 class SessionTableModel;
+class ValueTablePropertiesWidget;
+class ValueTableTableModel;
 
 using namespace usc;
 
@@ -52,6 +58,12 @@ private:
     void refreshResetTypeProperties();
     // Draws the shown security level again, or the empty page if it no longer exists.
     void refreshSecurityLevelProperties();
+    // Draws the shown value table again, or the empty page if it no longer exists.
+    void refreshValueTableProperties();
+    // Draws the shown data type again, or the empty page if it no longer exists.
+    void refreshDataTypeProperties();
+    // Draws the shown DID again, or the empty page if it no longer exists.
+    void refreshDataIdentifierProperties();
     // Draws the network page again if it is shown.
     void refreshNetworkProperties();
     void showNavigationContextMenu(const QPoint &pos);
@@ -64,6 +76,15 @@ private:
     void createNewResetType();
     void editResetType(int id);
     void deleteResetType(int id);
+    void createNewDataIdentifier();
+    void editDataIdentifier(int id);
+    void deleteDataIdentifier(int id);
+    void createNewDataType();
+    void editDataType(int id);
+    void deleteDataType(int id);
+    void createNewValueTable();
+    void editValueTable(int id);
+    void deleteValueTable(int id);
     void createNewSecurityLevel();
     void editSecurityLevel(int id);
     void deleteSecurityLevel(int id);
@@ -73,6 +94,9 @@ private:
     SessionTableModel *m_sessionTableModel = nullptr;
     ResetTypeTableModel *m_resetTypeTableModel = nullptr;
     SecurityLevelTableModel *m_securityLevelTableModel = nullptr;
+    ValueTableTableModel *m_valueTableTableModel = nullptr;
+    DataTypeTableModel *m_dataTypeTableModel = nullptr;
+    DataIdentifierTableModel *m_dataIdentifierTableModel = nullptr;
     QString m_currentFilePath; // empty until the document is saved or opened
 
     QSplitter *m_splitter = nullptr;
@@ -82,6 +106,9 @@ private:
     QTableView *m_sessionTable = nullptr;
     QTableView *m_resetTypeTable = nullptr;
     QTableView *m_securityLevelTable = nullptr;
+    QTableView *m_valueTableTable = nullptr;
+    QTableView *m_dataTypeTable = nullptr;
+    QTableView *m_dataIdentifierTable = nullptr;
     NetworkPropertiesWidget *m_networkProperties = nullptr;
     SessionPropertiesWidget *m_sessionProperties = nullptr;
     int m_shownSessionId = 0; // the session on m_sessionProperties; 0 = none
@@ -89,6 +116,12 @@ private:
     int m_shownResetTypeId = 0; // the reset type on m_resetTypeProperties; 0 = none
     SecurityLevelPropertiesWidget *m_securityLevelProperties = nullptr;
     int m_shownSecurityLevelId = 0; // the level on m_securityLevelProperties; 0 = none
+    ValueTablePropertiesWidget *m_valueTableProperties = nullptr;
+    int m_shownValueTableId = 0; // the value table on m_valueTableProperties; 0 = none
+    DataTypePropertiesWidget *m_dataTypeProperties = nullptr;
+    int m_shownDataTypeId = 0; // the data type on m_dataTypeProperties; 0 = none
+    DataIdentifierPropertiesWidget *m_dataIdentifierProperties = nullptr;
+    int m_shownDataIdentifierId = 0; // the DID on m_dataIdentifierProperties; 0 = none
 };
 
 #endif // MAINWINDOW_H

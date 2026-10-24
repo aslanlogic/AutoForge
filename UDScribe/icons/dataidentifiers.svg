@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- a data record: a tag (the DID) in front of a row of bytes -->
+  <rect x="1.5" y="3.5" width="4" height="9" rx="1" fill="#2f6fbf"/>
+  <rect x="5.5" y="3.5" width="9" height="9" rx="1" fill="#e4eefb" stroke="#2f6fbf" stroke-width="1.2"/>
+  <path d="M8.5 3.5v9M11.5 3.5v9" stroke="#2f6fbf" stroke-width="1"/>
+</svg>

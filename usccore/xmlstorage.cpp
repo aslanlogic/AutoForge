@@ -17,6 +17,210 @@ namespace {
 
 const QString FormatVersion = "1";
 
+// Reads one <ValueTable> element. On a problem it calls reader.raiseError().
+ValueTable readValueTable(QXmlStreamReader &reader)
+{
+    ValueTable valueTable;
+    valueTable.name = reader.attributes().value("name").toString().trimmed();
+    if (valueTable.name.isEmpty())
+        reader.raiseError("A value table has no name.");
+
+    QSet<qint64> values;
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Value")) {
+            // value is written in decimal; hex with 0x in front is accepted too.
+            const QString text = reader.attributes().value("value").toString().trimmed();
+            ValueTable::Entry entry;
+            bool ok = false;
+            if (text.startsWith("0x", Qt::CaseInsensitive))
+                entry.value = text.mid(2).toLongLong(&ok, 16);
+            else
+                entry.value = text.toLongLong(&ok, 10);
+            entry.description = reader.attributes().value("description").toString();
+            if (!ok)
+                reader.raiseError(QString("Value table '%1': '%2' is not a whole number.").arg(valueTable.name, text));
+            else if (values.contains(entry.value))
+                reader.raiseError(QString("Value table '%1': the value %2 is there twice.")
+                                      .arg(valueTable.name).arg(entry.value));
+            values.insert(entry.value);
+            valueTable.entries.append(entry);
+            reader.skipCurrentElement();
+        } else if (reader.name() == QLatin1String("Comment")) {
+            valueTable.comment = reader.readElementText();
+        } else {
+            reader.skipCurrentElement();
+        }
+    }
+
+    std::sort(valueTable.entries.begin(), valueTable.entries.end(),
+              [](const ValueTable::Entry &a, const ValueTable::Entry &b) { return a.value < b.value; });
+    return valueTable;
+}
+
+// Words used in the file. They are kept separate from the texts shown in the
+// GUI, so renaming a GUI label never breaks existing files.
+QString byteOrderToXml(DataType::ByteOrder byteOrder)
+{
+    switch (byteOrder) {
+    case DataType::ByteOrder::Intel:    return "intel";
+    case DataType::ByteOrder::Motorola: return "motorola";
+    }
+    return QString();
+}
+
+QString valueTypeToXml(DataType::ValueType valueType)
+{
+    switch (valueType) {
+    case DataType::ValueType::Signed:     return "signed";
+    case DataType::ValueType::Unsigned:   return "unsigned";
+    case DataType::ValueType::IeeeFloat:  return "float";
+    case DataType::ValueType::IeeeDouble: return "double";
+    case DataType::ValueType::Ascii:      return "ascii";
+    case DataType::ValueType::Bytes:      return "bytes";
+    }
+    return QString();
+}
+
+// Reads one <DataType> element. On a problem it calls reader.raiseError().
+// Its value table is referred to by name; the caller turns that into an id.
+DataType readDataType(QXmlStreamReader &reader)
+{
+    const QXmlStreamAttributes attributes = reader.attributes();
+    const QLocale c = QLocale::c();
+    DataType dataType;
+
+    auto number = [&](const QString &name, double defaultValue) {
+        if (!attributes.hasAttribute(name))
+            return defaultValue;
+        bool ok = false;
+        const double value = c.toDouble(attributes.value(name).toString(), &ok);
+        if (!ok)
+            reader.raiseError(QString("Data type '%1': '%2' is not a number.").arg(dataType.name, name));
+        return value;
+    };
+
+    dataType.name = attributes.value("name").toString().trimmed();
+    if (dataType.name.isEmpty())
+        reader.raiseError("A data type has no name.");
+
+    const QString byteOrder = attributes.value("byteOrder").toString();
+    if (byteOrder == "intel" || byteOrder.isEmpty())
+        dataType.byteOrder = DataType::ByteOrder::Intel;
+    else if (byteOrder == "motorola")
+        dataType.byteOrder = DataType::ByteOrder::Motorola;
+    else
+        reader.raiseError(QString("Data type '%1': unknown byteOrder '%2'.").arg(dataType.name, byteOrder));
+
+    const QString valueType = attributes.value("valueType").toString();
+    if (valueType == "unsigned" || valueType.isEmpty())
+        dataType.valueType = DataType::ValueType::Unsigned;
+    else if (valueType == "signed")
+        dataType.valueType = DataType::ValueType::Signed;
+    else if (valueType == "float")
+        dataType.valueType = DataType::ValueType::IeeeFloat;
+    else if (valueType == "double")
+        dataType.valueType = DataType::ValueType::IeeeDouble;
+    else if (valueType == "ascii")
+        dataType.valueType = DataType::ValueType::Ascii;
+    else if (valueType == "bytes")
+        dataType.valueType = DataType::ValueType::Bytes;
+    else
+        reader.raiseError(QString("Data type '%1': unknown valueType '%2'.").arg(dataType.name, valueType));
+
+    const double length = number("length", dataType.length);
+    dataType.length = int(length);
+    const QString lengthError = checkLength(dataType);
+    if (!reader.hasError() && (dataType.length != length || !lengthError.isEmpty()))
+        reader.raiseError(QString("Data type '%1': %2").arg(dataType.name,
+                                                             lengthError.isEmpty() ? "the length must be a whole number."
+                                                                                   : lengthError));
+
+    dataType.unit = attributes.value("unit").toString();
+    dataType.factor = number("factor", dataType.factor);
+    dataType.offset = number("offset", dataType.offset);
+    dataType.minimum = number("minimum", dataType.minimum);
+    dataType.maximum = number("maximum", dataType.maximum);
+
+    // Child elements; ones we do not know (e.g. from a newer version) are skipped.
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        if (reader.name() == QLatin1String("Comment"))
+            dataType.comment = reader.readElementText();
+        else
+            reader.skipCurrentElement();
+    }
+
+    return dataType;
+}
+
+// What a <DataIdentifier> element refers to by name; turned into ids once the
+// whole file is read.
+struct DataIdentifierRefs
+{
+    QStringList dataTypes; // per placement, in the order of DataIdentifier::mappings
+    QStringList readSessions;
+    QStringList readSecurityLevels;
+};
+
+// Reads one <DataIdentifier> element. On a problem it calls reader.raiseError().
+DataIdentifier readDataIdentifier(QXmlStreamReader &reader, DataIdentifierRefs *refs)
+{
+    const QXmlStreamAttributes attributes = reader.attributes();
+    DataIdentifier dataIdentifier;
+
+    dataIdentifier.name = attributes.value("name").toString().trimmed();
+    if (dataIdentifier.name.isEmpty())
+        reader.raiseError("A DID has no name.");
+
+    // did is written as hex ("0xF190"); plain decimal is accepted too.
+    const QString did = attributes.value("did").toString().trimmed();
+    bool ok = false;
+    uint value = 0;
+    if (did.startsWith("0x", Qt::CaseInsensitive))
+        value = did.mid(2).toUInt(&ok, 16);
+    else
+        value = did.toUInt(&ok, 10);
+    if (!ok || value > 0xFFFF)
+        reader.raiseError(QString("DID '%1': did '%2' is not a number from 0x0000 to 0xFFFF.").arg(dataIdentifier.name, did));
+    dataIdentifier.did = quint16(value);
+
+    if (attributes.hasAttribute("length")) {
+        dataIdentifier.length = attributes.value("length").toInt(&ok);
+        if (!ok || dataIdentifier.length < 1 || dataIdentifier.length > MaxDataRecordLength)
+            reader.raiseError(QString("DID '%1': 'length' must be a whole number from 1 to %2.")
+                                  .arg(dataIdentifier.name).arg(MaxDataRecordLength));
+    }
+
+    QSet<QString> placementNames;
+    while (!reader.hasError() && reader.readNextStartElement()) {
+        const QXmlStreamAttributes child = reader.attributes();
+        if (reader.name() == QLatin1String("Comment")) {
+            dataIdentifier.comment = reader.readElementText();
+            continue;
+        }
+        if (reader.name() == QLatin1String("DataType")) {
+            DataTypeMapping mapping;
+            mapping.name = child.value("name").toString().trimmed();
+            mapping.startBit = child.value("startBit").toInt(&ok);
+            if (mapping.name.isEmpty())
+                reader.raiseError(QString("DID '%1': a placed data type has no name.").arg(dataIdentifier.name));
+            else if (placementNames.contains(mapping.name))
+                reader.raiseError(QString("DID '%1': there are two placed data types named '%2'.")
+                                      .arg(dataIdentifier.name, mapping.name));
+            else if (!ok || mapping.startBit < 0)
+                reader.raiseError(QString("DID '%1': '%2' has no valid startBit.").arg(dataIdentifier.name, mapping.name));
+            placementNames.insert(mapping.name);
+            dataIdentifier.mappings.append(mapping);
+            refs->dataTypes.append(child.value("dataType").toString());
+        } else if (reader.name() == QLatin1String("ReadSession")) {
+            refs->readSessions.append(child.value("name").toString());
+        } else if (reader.name() == QLatin1String("ReadSecurityLevel")) {
+            refs->readSecurityLevels.append(child.value("name").toString());
+        }
+        reader.skipCurrentElement();
+    }
+    return dataIdentifier;
+}
+
 // Reads one <Session> element. On a problem it calls reader.raiseError().
 Session readSession(QXmlStreamReader &reader)
 {
@@ -450,6 +654,76 @@ bool save(const Database &database, const QString &filePath, QString *errorMessa
 
     writeNetwork(writer, database.network());
 
+    writer.writeStartElement("ValueTables");
+    for (const ValueTable &valueTable : database.allValueTables()) {
+        writer.writeStartElement("ValueTable");
+        writer.writeAttribute("name", valueTable.name);
+        for (const ValueTable::Entry &entry : valueTable.entries) {
+            writer.writeEmptyElement("Value");
+            writer.writeAttribute("value", QString::number(entry.value));
+            writer.writeAttribute("description", entry.description);
+        }
+        if (!valueTable.comment.isEmpty())
+            writer.writeTextElement("Comment", valueTable.comment);
+        writer.writeEndElement(); // ValueTable
+    }
+    writer.writeEndElement(); // ValueTables
+
+    writer.writeStartElement("DataTypes");
+    for (const DataType &dataType : database.allDataTypes()) {
+        writer.writeStartElement("DataType");
+        writer.writeAttribute("name", dataType.name);
+        writer.writeAttribute("length", QString::number(dataType.length));
+        writer.writeAttribute("byteOrder", byteOrderToXml(dataType.byteOrder));
+        writer.writeAttribute("valueType", valueTypeToXml(dataType.valueType));
+        writer.writeAttribute("unit", dataType.unit);
+        writer.writeAttribute("factor", numberToXml(dataType.factor));
+        writer.writeAttribute("offset", numberToXml(dataType.offset));
+        writer.writeAttribute("minimum", numberToXml(dataType.minimum));
+        writer.writeAttribute("maximum", numberToXml(dataType.maximum));
+        // The value table is referred to by name: ids are not saved.
+        if (const ValueTable *valueTable = database.findValueTable(dataType.valueTableId))
+            writer.writeAttribute("valueTable", valueTable->name);
+        if (!dataType.comment.isEmpty())
+            writer.writeTextElement("Comment", dataType.comment);
+        writer.writeEndElement(); // DataType
+    }
+    writer.writeEndElement(); // DataTypes
+
+    writer.writeStartElement("DataIdentifiers");
+    for (const DataIdentifier &dataIdentifier : database.allDataIdentifiers()) {
+        writer.writeStartElement("DataIdentifier");
+        writer.writeAttribute("name", dataIdentifier.name);
+        writer.writeAttribute("did", didToText(dataIdentifier.did));
+        writer.writeAttribute("length", QString::number(dataIdentifier.length));
+        // Data types, sessions and levels are referred to by name: ids are not saved.
+        for (const DataTypeMapping &mapping : dataIdentifier.mappings) {
+            const DataType *dataType = database.findDataType(mapping.dataTypeId);
+            if (!dataType)
+                continue;
+            writer.writeEmptyElement("DataType");
+            writer.writeAttribute("name", mapping.name);
+            writer.writeAttribute("dataType", dataType->name);
+            writer.writeAttribute("startBit", QString::number(mapping.startBit));
+        }
+        for (int sessionId : dataIdentifier.readSessionIds) {
+            if (const Session *session = database.findSession(sessionId)) {
+                writer.writeEmptyElement("ReadSession");
+                writer.writeAttribute("name", session->name);
+            }
+        }
+        for (int securityLevelId : dataIdentifier.readSecurityLevelIds) {
+            if (const SecurityLevel *securityLevel = database.findSecurityLevel(securityLevelId)) {
+                writer.writeEmptyElement("ReadSecurityLevel");
+                writer.writeAttribute("name", securityLevel->name);
+            }
+        }
+        if (!dataIdentifier.comment.isEmpty())
+            writer.writeTextElement("Comment", dataIdentifier.comment);
+        writer.writeEndElement(); // DataIdentifier
+    }
+    writer.writeEndElement(); // DataIdentifiers
+
     writer.writeStartElement("Sessions");
     for (const Session &session : database.allSessions()) {
         writer.writeStartElement("Session");
@@ -528,6 +802,15 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
 
     QXmlStreamReader reader(&file);
     Network loadedNetwork; // the defaults (CAN), if the file has no <Network>
+    QVector<ValueTable> loadedValueTables;
+    QSet<QString> valueTableNames;
+    QVector<DataType> loadedDataTypes;
+    QStringList dataTypeValueTableNames; // per loaded data type; resolved once all tables are read
+    QSet<QString> dataTypeNames;
+    QVector<DataIdentifier> loadedDataIdentifiers;
+    QVector<DataIdentifierRefs> dataIdentifierRefs; // per loaded DID
+    QSet<QString> dataIdentifierNames;
+    QSet<quint16> dids;
     QVector<Session> loadedSessions; // the default session is added if missing (old files)
     QSet<QString> sessionNames;
     QSet<quint8> sessionTypes;
@@ -553,6 +836,50 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
     while (!reader.hasError() && reader.readNextStartElement()) {
         if (reader.name() == QLatin1String("Network")) {
             loadedNetwork = readNetwork(reader);
+        } else if (reader.name() == QLatin1String("ValueTables")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("ValueTable")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                ValueTable valueTable = readValueTable(reader);
+                valueTable.id = loadedValueTables.size() + 1; // temporary; Database renumbers
+                if (!reader.hasError() && valueTableNames.contains(valueTable.name))
+                    reader.raiseError(QString("There are two value tables named '%1'.").arg(valueTable.name));
+                valueTableNames.insert(valueTable.name);
+                loadedValueTables.append(valueTable);
+            }
+        } else if (reader.name() == QLatin1String("DataTypes")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("DataType")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                dataTypeValueTableNames << reader.attributes().value("valueTable").toString();
+                DataType dataType = readDataType(reader);
+                dataType.id = loadedDataTypes.size() + 1; // temporary; Database renumbers
+                if (!reader.hasError() && dataTypeNames.contains(dataType.name))
+                    reader.raiseError(QString("There are two data types named '%1'.").arg(dataType.name));
+                dataTypeNames.insert(dataType.name);
+                loadedDataTypes.append(dataType);
+            }
+        } else if (reader.name() == QLatin1String("DataIdentifiers")) {
+            while (!reader.hasError() && reader.readNextStartElement()) {
+                if (reader.name() != QLatin1String("DataIdentifier")) {
+                    reader.skipCurrentElement();
+                    continue;
+                }
+                DataIdentifierRefs refs;
+                const DataIdentifier dataIdentifier = readDataIdentifier(reader, &refs);
+                if (!reader.hasError() && dataIdentifierNames.contains(dataIdentifier.name))
+                    reader.raiseError(QString("There are two DIDs named '%1'.").arg(dataIdentifier.name));
+                if (!reader.hasError() && dids.contains(dataIdentifier.did))
+                    reader.raiseError(QString("There are two DIDs with did %1.").arg(didToText(dataIdentifier.did)));
+                dataIdentifierNames.insert(dataIdentifier.name);
+                dids.insert(dataIdentifier.did);
+                loadedDataIdentifiers.append(dataIdentifier);
+                dataIdentifierRefs.append(refs);
+            }
         } else if (reader.name() == QLatin1String("Sessions")) {
             while (!reader.hasError() && reader.readNextStartElement()) {
                 if (reader.name() != QLatin1String("Session")) {
@@ -619,6 +946,22 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
         return false;
     }
 
+    // Now that all value tables are known, turn the table names in data types into ids.
+    QHash<QString, int> valueTableIdByName;
+    for (const ValueTable &valueTable : loadedValueTables)
+        valueTableIdByName.insert(valueTable.name, valueTable.id);
+    for (int i = 0; i < loadedDataTypes.size(); ++i) {
+        const QString &name = dataTypeValueTableNames.at(i);
+        if (name.isEmpty())
+            continue;
+        if (!valueTableIdByName.contains(name)) {
+            *errorMessage = QString("Data type '%1' uses value table '%2', which does not exist.")
+                                .arg(loadedDataTypes.at(i).name, name);
+            return false;
+        }
+        loadedDataTypes[i].valueTableId = valueTableIdByName.value(name);
+    }
+
     // Now that the whole file is read, turn the session and security level names into ids.
     QHash<QString, int> sessionIdByName;
     for (const Session &session : loadedSessions)
@@ -643,7 +986,39 @@ bool load(Database &database, const QString &filePath, QString *errorMessage)
             return false;
     }
 
-    database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels, loadedResetTypes);
+    // DIDs: their data types, sessions and levels, then whether the data types fit.
+    QHash<QString, int> dataTypeIdByName;
+    QHash<int, DataType> dataTypesById;
+    for (const DataType &dataType : loadedDataTypes) {
+        dataTypeIdByName.insert(dataType.name, dataType.id);
+        dataTypesById.insert(dataType.id, dataType);
+    }
+    for (int i = 0; i < loadedDataIdentifiers.size(); ++i) {
+        DataIdentifier &dataIdentifier = loadedDataIdentifiers[i];
+        const DataIdentifierRefs &refs = dataIdentifierRefs.at(i);
+        const QString owner = QString("DID %1 '%2'").arg(didToText(dataIdentifier.did), dataIdentifier.name);
+        for (int m = 0; m < dataIdentifier.mappings.size(); ++m) {
+            const QString &dataTypeName = refs.dataTypes.at(m);
+            if (!dataTypeIdByName.contains(dataTypeName)) {
+                *errorMessage = QString("%1 refers to data type '%2', which does not exist.").arg(owner, dataTypeName);
+                return false;
+            }
+            dataIdentifier.mappings[m].dataTypeId = dataTypeIdByName.value(dataTypeName);
+        }
+        if (!resolveNames(refs.readSessions, sessionIdByName, &dataIdentifier.readSessionIds, owner, "session",
+                          errorMessage)
+            || !resolveNames(refs.readSecurityLevels, securityLevelIdByName, &dataIdentifier.readSecurityLevelIds,
+                             owner, "security level", errorMessage))
+            return false;
+        const QString layoutError = checkDataTypeLayout(dataIdentifier.length, dataIdentifier.mappings, dataTypesById);
+        if (!layoutError.isEmpty()) {
+            *errorMessage = QString("%1: %2").arg(owner, layoutError);
+            return false;
+        }
+    }
+
+    database.replaceAll(loadedNetwork, loadedSessions, loadedSecurityLevels, loadedResetTypes, loadedValueTables,
+                        loadedDataTypes, loadedDataIdentifiers);
     return true;
 }
 

@@ -14,6 +14,27 @@ class Database;
 //     <Network protocol="can" requestId="0x7E0" responseId="0x7E8">
 //       <Can bitrate="500000" samplePoint="87.5" idFormat="standard"/>  (only the active protocol's settings)
 //     </Network>
+//     <ValueTables>
+//       <ValueTable name="OnOff">
+//         <Value value="0" description="Off"/>
+//         <Value value="1" description="On"/>
+//       </ValueTable>
+//     </ValueTables>
+//     <DataTypes>
+//       <DataType name="EngineSpeed" length="16" byteOrder="intel" valueType="unsigned"
+//                 unit="rpm" factor="0.25" offset="0" minimum="0" maximum="16383.75" valueTable="...">
+//         <Comment>Crankshaft speed</Comment>       (valueType: signed, unsigned, float, double,
+//       </DataType>                                  ascii or bytes; valueTable is optional)
+//     </DataTypes>
+//     <DataIdentifiers>
+//       <DataIdentifier name="TyrePressures" did="0x0100" length="4">   (length in bytes)
+//         <DataType name="FL" dataType="Pressure" startBit="0"/>     (placements; the same
+//         <DataType name="FR" dataType="Pressure" startBit="8"/>      data type may appear twice)
+//         <ReadSession name="Extended"/>                (by session name; one per session)
+//         <ReadSecurityLevel name="L1"/>                (by name; any of them, none = no security)
+//         <Comment>Pressure of all four tyres</Comment>
+//       </DataIdentifier>
+//     </DataIdentifiers>
 //     <Sessions>                                     (always has the default session, 0x01)
 //       <Session name="Default" sessionType="0x01" p2="50" p2Star="5000">
 //         <Comment>Normal operation</Comment>

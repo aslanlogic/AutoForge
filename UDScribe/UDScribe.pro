@@ -8,6 +8,13 @@ TARGET = UDScribe
 TEMPLATE = app
 
 SOURCES += \
+    dataidentifierdialog.cpp \
+    dataidentifierlayoutwidget.cpp \
+    dataidentifierpropertieswidget.cpp \
+    dataidentifiertablemodel.cpp \
+    datatypedialog.cpp \
+    datatypepropertieswidget.cpp \
+    datatypetablemodel.cpp \
     main.cpp \
     mainwindow.cpp \
     navigationmodel.cpp \
@@ -21,9 +28,19 @@ SOURCES += \
     securityleveltablemodel.cpp \
     sessiondialog.cpp \
     sessionpropertieswidget.cpp \
-    sessiontablemodel.cpp
+    sessiontablemodel.cpp \
+    valuetabledialog.cpp \
+    valuetablepropertieswidget.cpp \
+    valuetabletablemodel.cpp
 
 HEADERS += \
+    dataidentifierdialog.h \
+    dataidentifierlayoutwidget.h \
+    dataidentifierpropertieswidget.h \
+    dataidentifiertablemodel.h \
+    datatypedialog.h \
+    datatypepropertieswidget.h \
+    datatypetablemodel.h \
     mainwindow.h \
     navigationmodel.h \
     networkdialog.h \
@@ -37,7 +54,10 @@ HEADERS += \
     securityleveltablemodel.h \
     sessiondialog.h \
     sessionpropertieswidget.h \
-    sessiontablemodel.h
+    sessiontablemodel.h \
+    valuetabledialog.h \
+    valuetablepropertieswidget.h \
+    valuetabletablemodel.h
 
 RESOURCES += \
     resources.qrc

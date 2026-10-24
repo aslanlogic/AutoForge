@@ -19,22 +19,36 @@ using namespace usc;
 //     <one row per reset type, e.g. "0x01 Hard Reset">
 //   0x27 SecurityAccess
 //     <one row per security level, e.g. "0x01 Extended">
+//   Value Tables                      (Value Tables, Data Types and Data Identifiers
+//     <one row per value table>        are always the last headings)
+//   Data Types
+//     <one row per data type>
+//   Data Identifiers
+//     <one row per DID, e.g. "0xF190 VIN">
 class NavigationModel : public QAbstractItemModel
 {
     Q_OBJECT
 
 public:
-    enum Category { Network, DiagnosticSessionControl, EcuReset, SecurityAccess, CategoryCount };
+    // ValueTables, DataTypes and DataIdentifiers stay last: new services go before them.
+    enum Category {
+        Network, DiagnosticSessionControl, EcuReset, SecurityAccess, ValueTables, DataTypes, DataIdentifiers,
+        CategoryCount
+    };
 
     // What a row shows; ask with ItemKindRole.
     enum ItemKind {
         Heading, // row = Category
         SessionItem,
         ResetTypeItem,
-        SecurityLevelItem
+        SecurityLevelItem,
+        ValueTableItem,
+        DataTypeItem,
+        DataIdentifierItem
     };
 
-    // The id of the database object shown in that row: Session::id, ResetType::id or SecurityLevel::id.
+    // The id of the database object shown in that row: Session::id, ResetType::id,
+    // SecurityLevel::id, ValueTable::id, DataType::id or DataIdentifier::id.
     static constexpr int ObjectIdRole = Qt::UserRole + 1;
     static constexpr int ItemKindRole = Qt::UserRole + 2;
 
