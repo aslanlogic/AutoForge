@@ -501,9 +501,12 @@ GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
     m_legend->setColumnCount(3);
     m_legend->setHeaderLabels({"Signal", "Value", ""});
     m_legend->setRootIsDecorated(false);
+    // The columns keep their width until the user drags them, whatever the values.
     m_legend->header()->setStretchLastSection(false);
-    m_legend->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_legend->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_legend->header()->setSectionResizeMode(QHeaderView::Interactive);
+    m_legend->header()->setSectionResizeMode(2, QHeaderView::Fixed);
+    m_legend->setColumnWidth(0, 120);
+    m_legend->setColumnWidth(1, 110);
     m_legend->setColumnWidth(2, 28);
     connect(m_legend, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         const int index = m_legend->indexOfTopLevelItem(item);
