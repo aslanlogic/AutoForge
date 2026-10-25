@@ -1,0 +1,172 @@
+#include "desktoptabs.h"
+
+#include <QInputDialog>
+#include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QMenu>
+#include <QTabBar>
+#include <QToolButton>
+
+DesktopTabs::DesktopTabs(QWidget *parent)
+    : QTabWidget(parent)
+{
+    setDocumentMode(true);
+    setMovable(true);
+
+    auto *addButton = new QToolButton;
+    addButton->setText("+");
+    addButton->setAutoRaise(true);
+    addButton->setToolTip("New desktop");
+    connect(addButton, &QToolButton::clicked, this, [this] { setCurrentWidget(addDesktop(newDesktopName())); });
+    setCornerWidget(addButton, Qt::TopRightCorner);
+
+    connect(tabBar(), &QTabBar::tabBarDoubleClicked, this, [this](int index) {
+        if (index < 0)
+            setCurrentWidget(addDesktop(newDesktopName())); // the empty part of the tab bar
+        else
+            renameDesktop(index);
+    });
+    tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tabBar(), &QTabBar::customContextMenuRequested, this, &DesktopTabs::showTabMenu);
+}
+
+QMdiArea *DesktopTabs::addDesktop(const QString &name)
+{
+    auto *area = new QMdiArea;
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    addTab(area, name);
+    return area;
+}
+
+QMdiArea *DesktopTabs::area(int index) const
+{
+    return qobject_cast<QMdiArea *>(widget(index));
+}
+
+QMdiArea *DesktopTabs::currentArea() const
+{
+    return qobject_cast<QMdiArea *>(currentWidget());
+}
+
+QStringList DesktopTabs::desktopNames() const
+{
+    QStringList names;
+    for (int i = 0; i < count(); ++i)
+        names << tabText(i);
+    return names;
+}
+
+int DesktopTabs::desktopOf(const QMdiSubWindow *window) const
+{
+    return window ? indexOf(window->mdiArea()) : -1;
+}
+
+void DesktopTabs::moveWindow(QMdiSubWindow *window, int desktopIndex)
+{
+    QMdiArea *target = area(desktopIndex);
+    QMdiArea *source = window->mdiArea();
+    if (!target || target == source)
+        return;
+    const QRect geometry = window->geometry();
+    const bool visible = !window->isHidden();
+    if (source)
+        source->removeSubWindow(window);
+    target->addSubWindow(window);
+    window->setGeometry(geometry);
+    window->setVisible(visible);
+}
+
+void DesktopTabs::showWindow(QMdiSubWindow *window)
+{
+    setCurrentWidget(window->mdiArea());
+    // Closing a window only hides it, and the widget inside it too; show both again.
+    window->widget()->show();
+    window->showNormal();
+    window->mdiArea()->setActiveSubWindow(window);
+}
+
+void DesktopTabs::fillMoveMenu(QMenu *menu, QMdiSubWindow *window)
+{
+    menu->clear();
+    if (!window) {
+        menu->addAction("No active window")->setEnabled(false);
+        return;
+    }
+    const int current = desktopOf(window);
+    for (int i = 0; i < count(); ++i) {
+        QAction *action = menu->addAction(tabText(i));
+        action->setCheckable(true);
+        action->setChecked(i == current);
+        action->setEnabled(i != current);
+        connect(action, &QAction::triggered, this, [this, window, i] {
+            moveWindow(window, i);
+            showWindow(window); // follow it to its new desktop
+        });
+    }
+}
+
+void DesktopTabs::setDesktops(QStringList names)
+{
+    if (names.isEmpty())
+        names << "Desktop 1";
+    while (count() > names.size()) {
+        // Keep the windows: move them to the first desktop, then drop the last one.
+        QMdiArea *last = area(count() - 1);
+        for (QMdiSubWindow *window : last->subWindowList())
+            moveWindow(window, 0);
+        removeTab(count() - 1);
+        delete last;
+    }
+    while (count() < names.size())
+        addDesktop(QString());
+    for (int i = 0; i < names.size(); ++i)
+        setTabText(i, names[i]);
+}
+
+void DesktopTabs::renameDesktop(int index)
+{
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, "Rename Desktop", "Name:", QLineEdit::Normal,
+                                               tabText(index), &ok).trimmed();
+    if (ok && !name.isEmpty())
+        setTabText(index, name);
+}
+
+void DesktopTabs::closeDesktop(int index)
+{
+    if (count() <= 1 || index < 0 || index >= count())
+        return;
+    QMdiArea *closing = area(index);
+    const int neighbour = index == 0 ? 1 : index - 1;
+    for (QMdiSubWindow *window : closing->subWindowList())
+        moveWindow(window, neighbour);
+    removeTab(index);
+    delete closing;
+}
+
+QString DesktopTabs::newDesktopName() const
+{
+    const QStringList names = desktopNames();
+    for (int number = count() + 1;; ++number) {
+        const QString name = QString("Desktop %1").arg(number);
+        if (!names.contains(name))
+            return name;
+    }
+}
+
+void DesktopTabs::showTabMenu(const QPoint &position)
+{
+    const int index = tabBar()->tabAt(position);
+    QMenu menu;
+    if (index >= 0) {
+        menu.addAction("Rename...", this, [this, index] { renameDesktop(index); });
+        QAction *close = menu.addAction("Close", this, [this, index] { closeDesktop(index); });
+        close->setEnabled(count() > 1);
+        if (count() <= 1)
+            close->setToolTip("The last desktop cannot be closed");
+        menu.addSeparator();
+    }
+    menu.addAction("New Desktop", this, [this] { setCurrentWidget(addDesktop(newDesktopName())); });
+    menu.exec(tabBar()->mapToGlobal(position));
+}

@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "desktoptabs.h"
 #include "diagnosticconsole.h"
 #include "ecustatewindow.h"
 #include "generatorwindow.h"
@@ -16,6 +17,7 @@
 #include <QLabel>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QMenu>
 #include <QMenuBar>
 #include <QCloseEvent>
 #include <QSettings>
@@ -35,10 +37,9 @@ MainWindow::MainWindow(QWidget *parent)
     m_tester = new Tester(this);
     m_tester->setKeyAlgorithm(&m_keyAlgorithm);
 
-    m_mdiArea = new QMdiArea;
-    m_mdiArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_mdiArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setCentralWidget(m_mdiArea);
+    m_desktops = new DesktopTabs;
+    m_desktops->addDesktop("Desktop 1");
+    setCentralWidget(m_desktops);
 
     setupWindows();
     setupMenus();
@@ -71,10 +72,15 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::setupWindows()
 {
     auto addWindow = [this](QWidget *widget, const QString &title, const QRect &geometry) {
-        QMdiSubWindow *window = m_mdiArea->addSubWindow(widget);
+        QMdiSubWindow *window = m_desktops->area(0)->addSubWindow(widget);
         window->setWindowTitle(title);
         window->setAttribute(Qt::WA_DeleteOnClose, false); // closing only hides it
         window->setGeometry(geometry);
+        // The window's own menu (its title bar icon) can move it to another desktop.
+        QMenu *moveMenu = window->systemMenu()->addMenu("Move to &Desktop");
+        connect(moveMenu, &QMenu::aboutToShow, this, [this, moveMenu, window] {
+            m_desktops->fillMoveMenu(moveMenu, window);
+        });
         return window;
     };
     m_diagnosticConsole = new DiagnosticConsole(m_tester);
@@ -119,8 +125,13 @@ void MainWindow::setupMenus()
     windowsMenu->addAction("&Interactive Generator", this, [this] { showWindow(m_generatorWindow); });
     windowsMenu->addAction("&Graphics", this, [this] { showWindow(m_graphWindow); });
     windowsMenu->addSeparator();
-    windowsMenu->addAction("&Tile", m_mdiArea, &QMdiArea::tileSubWindows);
-    windowsMenu->addAction("C&ascade", m_mdiArea, &QMdiArea::cascadeSubWindows);
+    QMenu *moveMenu = windowsMenu->addMenu("&Move Active Window to Desktop");
+    connect(moveMenu, &QMenu::aboutToShow, this, [this, moveMenu] {
+        m_desktops->fillMoveMenu(moveMenu, m_desktops->currentArea()->activeSubWindow());
+    });
+    windowsMenu->addSeparator();
+    windowsMenu->addAction("&Tile", this, [this] { m_desktops->currentArea()->tileSubWindows(); });
+    windowsMenu->addAction("C&ascade", this, [this] { m_desktops->currentArea()->cascadeSubWindows(); });
 }
 
 void MainWindow::setupToolBar()
@@ -141,8 +152,8 @@ void MainWindow::setupToolBar()
     connect(m_testerPresentAction, &QAction::toggled, m_tester, &Tester::setTesterPresentEnabled);
 
     toolBar->addSeparator();
-    toolBar->addAction("Tile", m_mdiArea, &QMdiArea::tileSubWindows);
-    toolBar->addAction("Cascade", m_mdiArea, &QMdiArea::cascadeSubWindows);
+    toolBar->addAction("Tile", this, [this] { m_desktops->currentArea()->tileSubWindows(); });
+    toolBar->addAction("Cascade", this, [this] { m_desktops->currentArea()->cascadeSubWindows(); });
 }
 
 bool MainWindow::openFiles(const QStringList &filePaths)
@@ -317,9 +328,13 @@ bool MainWindow::loadConfiguration(const QString &filePath)
     restoreGeometry(settings.value("mainWindow").toByteArray());
     settings.endGroup();
 
+    // The desktops first, then each window onto its desktop. An older configuration
+    // has no desktops: everything is on one.
+    m_desktops->setDesktops(settings.value("Desktops/names").toStringList());
     for (const auto &named : namedWindows()) {
         settings.beginGroup("Window." + named.first);
         QMdiSubWindow *window = named.second;
+        m_desktops->moveWindow(window, qBound(0, settings.value("desktop", 0).toInt(), m_desktops->count() - 1));
         if (settings.contains("geometry")) {
             window->widget()->show();
             window->showNormal();
@@ -333,6 +348,7 @@ bool MainWindow::loadConfiguration(const QString &filePath)
         }
         settings.endGroup();
     }
+    m_desktops->setCurrentIndex(qBound(0, settings.value("Desktops/current", 0).toInt(), m_desktops->count() - 1));
     settings.beginGroup("Graphics");
     m_graph->loadSettings(settings);
     settings.endGroup();
@@ -361,10 +377,14 @@ void MainWindow::writeConfiguration(QSettings &settings, const QDir &directory) 
     settings.setValue("mainWindow", saveGeometry());
     settings.endGroup();
 
+    settings.setValue("Desktops/names", m_desktops->desktopNames());
+    settings.setValue("Desktops/current", m_desktops->currentIndex());
     for (const auto &named : namedWindows()) {
         settings.beginGroup("Window." + named.first);
+        settings.setValue("desktop", m_desktops->desktopOf(named.second));
         settings.setValue("geometry", named.second->geometry());
-        settings.setValue("visible", named.second->isVisible());
+        // isHidden, not isVisible: a window on a desktop that is not shown is still open.
+        settings.setValue("visible", !named.second->isHidden());
         settings.setValue("minimized", named.second->isMinimized());
         settings.setValue("maximized", named.second->isMaximized());
         settings.endGroup();
@@ -461,11 +481,7 @@ void MainWindow::updateStatus()
 
 void MainWindow::showWindow(QMdiSubWindow *window)
 {
-    // Closing a sub-window only hides it (it is not deleted), so it can be shown again.
-    // Closing also hides the widget inside it, so that is shown again too.
-    window->widget()->show();
-    window->showNormal();
-    m_mdiArea->setActiveSubWindow(window);
+    m_desktops->showWindow(window);
 }
 
 void MainWindow::updateTitle()

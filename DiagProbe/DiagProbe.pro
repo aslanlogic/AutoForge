@@ -7,6 +7,7 @@ TEMPLATE = app
 
 SOURCES += \
     decoding.cpp \
+    desktoptabs.cpp \
     diagnosticconsole.cpp \
     ecustatewindow.cpp \
     generatorwindow.cpp \
@@ -21,6 +22,7 @@ SOURCES += \
 HEADERS += \
     bitcodec.h \
     decoding.h \
+    desktoptabs.h \
     diagdefaults.h \
     diagnosticconsole.h \
     ecustatewindow.h \

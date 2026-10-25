@@ -13,6 +13,7 @@ namespace usc {
 class Database;
 } // namespace usc
 
+class DesktopTabs;
 class DiagnosticConsole;
 class EcuStateWindow;
 class GeneratorWindow;
@@ -21,19 +22,19 @@ class QAction;
 class QDir;
 class QSettings;
 class QLabel;
-class QMdiArea;
 class QMdiSubWindow;
 class Tester;
 class TraceWindow;
 
-// The tester's main window: a desktop of movable windows (QMdiArea) like CANoe.
+// The tester's main window: desktops of movable windows, like CANoe (see DesktopTabs).
 // It holds one diagnostic description (.uscxml, the ECU to talk to) and one
 // message database (.ffxml, to decode the bus traffic). Both are only read. A key
 // algorithm plugin (see seedkey.h) computes the SecurityAccess keys.
 //
 // A configuration (.dpcfg, an INI file) saves the whole setup: both files and the
 // key algorithm (relative to the configuration), the window layout, the Graphics
-// signals, the Interactive generator's transmit list and the toolbar switches.
+// signals, the Interactive generator's transmit list, the toolbar switches and
+// the desktops with the windows on each.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -91,7 +92,7 @@ private:
     Tester *m_tester = nullptr;
     KeyAlgorithm m_keyAlgorithm;
 
-    QMdiArea *m_mdiArea = nullptr;
+    DesktopTabs *m_desktops = nullptr;
     DiagnosticConsole *m_diagnosticConsole = nullptr;
     EcuStateWindow *m_ecuState = nullptr;
     TraceWindow *m_trace = nullptr;

@@ -71,6 +71,14 @@ Everything for talking to the ECU, in one window.
 
 Send `.ffxml` messages once or cyclically. Edit their signals in physical values or by value-table name; the payload follows at once. A raw frame row sends any ID and bytes. Messages the `Tester` node transmits are in the list from the start.
 
+### Desktops
+
+Like CANoe, the windows live on **desktops**: tabs above the window area, each with its own windows and layout, for example *Diagnostics* with the console and ECU state, and *Bus* with Trace and Graphics.
+- **+** (or a double-click on the empty tab bar) adds a desktop.
+- Double-click a tab to rename it; right-click it to rename or close it. Closing a desktop moves its windows to the next one.
+- **Windows → Move Active Window to Desktop**, or the window's own title bar menu, moves a window to another desktop.
+- The Windows menu takes you to a window's desktop, and Tile and Cascade arrange the current desktop.
+
 ### Configurations
 
 **File → Save Configuration** (Ctrl+S) stores the whole setup in a `.dpcfg` file:
@@ -78,7 +86,8 @@ Send `.ffxml` messages once or cyclically. Edit their signals in physical values
 - every window's position, size and whether it is open;
 - the plotted signals, axis mode and span;
 - the generator's transmit list with modes, cycle times and signal values;
-- the toolbar switches.
+- the toolbar switches;
+- the desktops and which windows are on each.
 
 Open it again with **File → Open Configuration** or `DiagProbe setup.dpcfg`.
 
