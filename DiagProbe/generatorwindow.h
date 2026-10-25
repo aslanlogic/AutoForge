@@ -8,6 +8,7 @@
 #include <QWidget>
 
 class QComboBox;
+class QSettings;
 class QLabel;
 class QLineEdit;
 class QTableWidget;
@@ -41,6 +42,11 @@ public:
     // Starts or stops sending entry `index` every cycle time.
     void setCyclic(int index, bool running);
 
+    // The transmit list, for a DiagProbe configuration: each message by name with
+    // its mode, cycle time and signal values. Load after setDatabase().
+    void saveSettings(QSettings &settings) const;
+    void loadSettings(QSettings &settings);
+
 private:
     struct Entry
     {
@@ -48,8 +54,10 @@ private:
         QHash<int, double> values; // ff Signal::id -> physical value
         QByteArray payload;
         QTimer *timer = nullptr;
+        bool cyclic = false; // the mode: sent every cycle time (when started) instead of once
     };
 
+    void clearEntries();
     void rebuildList();
     void updateRow(int index);
     void showSignals();

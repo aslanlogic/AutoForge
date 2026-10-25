@@ -71,6 +71,17 @@ Everything for talking to the ECU, in one window.
 
 Send `.ffxml` messages once or cyclically. Edit their signals in physical values or by value-table name; the payload follows at once. A raw frame row sends any ID and bytes. Messages the `Tester` node transmits are in the list from the start.
 
+### Configurations
+
+**File → Save Configuration** (Ctrl+S, or **Save** in the toolbar) stores the whole setup in a `.dpcfg` file:
+- both files, relative to the configuration, so a project folder can move;
+- every window's position, size and whether it is open;
+- the plotted signals, axis mode and span;
+- the generator's transmit list with modes, cycle times and signal values;
+- the toolbar switches.
+
+Open it again with **File → Open Configuration** or `DiagProbe setup.dpcfg`.
+
 ### Under the hood
 
 - **UDS client:** waits P2, or P2* after `0x78` response pending, with the timing the ECU reports in its `0x50` response. It sends TesterPresent (`3E 80`) every 2 s outside the default session and follows S3, so it knows when the ECU has fallen back to default.

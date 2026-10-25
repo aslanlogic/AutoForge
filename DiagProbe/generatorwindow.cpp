@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSettings>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTableWidget>
@@ -117,9 +118,7 @@ GeneratorWindow::GeneratorWindow(Tester *tester, QWidget *parent)
 
 void GeneratorWindow::setDatabase(const ff::Database *database)
 {
-    for (Entry &entry : m_entries)
-        delete entry.timer;
-    m_entries.clear();
+    clearEntries();
     m_database = database;
     m_addCombo->clear();
     if (database) {
@@ -132,6 +131,68 @@ void GeneratorWindow::setDatabase(const ff::Database *database)
         }
     }
     rebuildList();
+}
+
+void GeneratorWindow::clearEntries()
+{
+    for (Entry &entry : m_entries)
+        delete entry.timer;
+    m_entries.clear();
+}
+
+void GeneratorWindow::saveSettings(QSettings &settings) const
+{
+    settings.beginWriteArray("messages", m_entries.size());
+    for (int i = 0; i < m_entries.size(); ++i) {
+        const Entry &entry = m_entries[i];
+        const ff::Message *message = m_database ? m_database->findMessage(entry.messageId) : nullptr;
+        settings.setArrayIndex(i);
+        settings.setValue("message", message ? message->name : QString());
+        settings.setValue("mode", entry.cyclic ? "cyclic" : "once");
+        settings.setValue("cycleTime", entry.timer->interval());
+        settings.beginGroup("signals");
+        for (auto it = entry.values.begin(); it != entry.values.end(); ++it) {
+            if (const ff::Signal *signal = m_database->findSignal(it.key()))
+                settings.setValue(signal->name, it.value());
+        }
+        settings.endGroup();
+    }
+    settings.endArray();
+}
+
+void GeneratorWindow::loadSettings(QSettings &settings)
+{
+    if (!m_database)
+        return;
+    clearEntries();
+    const int count = settings.beginReadArray("messages");
+    for (int i = 0; i < count; ++i) {
+        settings.setArrayIndex(i);
+        const QString name = settings.value("message").toString();
+        for (const ff::Message &message : m_database->allMessages()) {
+            if (message.name != name || !addMessage(message.id))
+                continue;
+            Entry &entry = m_entries.last();
+            entry.cyclic = settings.value("mode").toString() == "cyclic";
+            entry.timer->setInterval(qMax(1, settings.value("cycleTime", entry.timer->interval()).toInt()));
+            settings.beginGroup("signals");
+            for (const QString &signalName : settings.childKeys()) {
+                for (auto it = entry.values.begin(); it != entry.values.end(); ++it) {
+                    const ff::Signal *signal = m_database->findSignal(it.key());
+                    if (signal && signal->name == signalName)
+                        it.value() = settings.value(signalName).toDouble();
+                }
+            }
+            settings.endGroup();
+            encode(entry);
+            break;
+        }
+    }
+    settings.endArray();
+    rebuildList();
+    if (!m_entries.isEmpty())
+        m_list->selectRow(0);
+    showSignals();
 }
 
 bool GeneratorWindow::addMessage(int messageId)
@@ -189,12 +250,13 @@ void GeneratorWindow::rebuildList()
 
         auto *mode = new QComboBox;
         mode->addItems({"Once", "Cyclic"});
-        mode->setCurrentIndex(entry.timer->isActive() ? 1 : 0);
+        mode->setCurrentIndex(entry.cyclic ? 1 : 0);
         auto *cycle = new QSpinBox;
         cycle->setRange(1, 60000);
         cycle->setValue(entry.timer->interval());
         auto *action = new QPushButton;
-        connect(mode, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, index] {
+        connect(mode, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, index](int modeIndex) {
+            m_entries[index].cyclic = modeIndex == 1;
             setCyclic(index, false);
             updateRow(index);
         });
@@ -331,6 +393,8 @@ void GeneratorWindow::setCyclic(int index, bool running)
     if (index < 0 || index >= m_entries.size())
         return;
     QTimer *timer = m_entries[index].timer;
+    if (running)
+        m_entries[index].cyclic = true;
     if (running && m_tester->isRunning()) {
         timer->start();
         sendEntry(index);

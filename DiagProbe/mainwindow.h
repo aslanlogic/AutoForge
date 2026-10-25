@@ -25,6 +25,10 @@ class TraceWindow;
 // The tester's main window: a desktop of movable windows (QMdiArea) like CANoe.
 // It holds one diagnostic description (.uscxml, the ECU to talk to) and one
 // message database (.ffxml, to decode the bus traffic). Both are only read.
+//
+// A configuration (.dpcfg, an INI file) saves the whole setup: both files (relative
+// to the configuration), the window layout, the Graphics signals, the Interactive
+// generator's transmit list and the toolbar switches.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -32,8 +36,8 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
 
-    // Opens .uscxml and .ffxml files, e.g. from the command line. Returns false
-    // (after telling the user) if one could not be opened.
+    // Opens .dpcfg, .uscxml and .ffxml files, e.g. from the command line. Returns
+    // false (after telling the user) if one could not be opened.
     bool openFiles(const QStringList &filePaths);
 
     Tester *tester() const { return m_tester; }
@@ -47,6 +51,13 @@ private:
     void openExamples();
     bool loadDiagnosticDescription(const QString &filePath);
     bool loadDatabase(const QString &filePath);
+    void openConfiguration();
+    bool saveConfiguration();
+    bool saveConfigurationAs();
+    bool loadConfiguration(const QString &filePath);
+    bool saveConfigurationTo(const QString &filePath);
+    // The sub-windows by the names a configuration uses for them.
+    QList<QPair<QString, QMdiSubWindow *>> namedWindows() const;
     void startOrStopMeasurement();
     void updateMeasurementActions();
     void updateStatus();
@@ -58,6 +69,7 @@ private:
     ff::Database *m_messageDatabase = nullptr;
     QString m_diagnosticDescriptionPath; // empty until one is opened
     QString m_messageDatabasePath;       // empty until one is opened
+    QString m_configurationPath;         // empty until one is opened or saved
 
     Tester *m_tester = nullptr;
 

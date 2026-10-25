@@ -11,6 +11,7 @@
 class PlotWidget;
 class QCheckBox;
 class QComboBox;
+class QSettings;
 class QToolButton;
 class QTreeWidget;
 class Tester;
@@ -55,6 +56,11 @@ public:
     void removeSignal(int index);
     int signalCount() const { return m_series.size(); }
     const QVector<PlotSeries> &series() const { return m_series; }
+
+    // For a DiagProbe configuration: the signals (by message and signal name), which
+    // are shown, the axis mode and the span. Load after setDatabase().
+    void saveSettings(QSettings &settings) const;
+    void loadSettings(QSettings &settings);
 
 private:
     void onFrame(double time, quint32 id, const QByteArray &payload, bool transmitted);

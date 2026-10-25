@@ -17,6 +17,7 @@
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QMenuBar>
+#include <QSettings>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QTimer>
@@ -95,6 +96,13 @@ void MainWindow::setupMenus()
                         this, &MainWindow::openDatabase, QKeySequence("Ctrl+Shift+O"));
     fileMenu->addAction("Open &Examples", this, &MainWindow::openExamples, QKeySequence("Ctrl+E"));
     fileMenu->addSeparator();
+    fileMenu->addAction(QIcon::fromTheme("document-open"), "Open &Configuration...",
+                        this, &MainWindow::openConfiguration, QKeySequence("Ctrl+Shift+L"));
+    fileMenu->addAction(QIcon::fromTheme("document-save"), "&Save Configuration",
+                        this, &MainWindow::saveConfiguration, QKeySequence::Save);
+    fileMenu->addAction(QIcon::fromTheme("document-save-as"), "Save Configuration &As...",
+                        this, &MainWindow::saveConfigurationAs, QKeySequence::SaveAs);
+    fileMenu->addSeparator();
     fileMenu->addAction(QIcon::fromTheme("application-exit"), "&Quit", this, &QWidget::close, QKeySequence::Quit);
 
     QMenu *windowsMenu = menuBar()->addMenu("&Windows");
@@ -113,6 +121,11 @@ void MainWindow::setupToolBar()
     QToolBar *toolBar = addToolBar("Measurement");
     toolBar->setObjectName("measurementToolBar");
     toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+    QAction *saveAction = toolBar->addAction(QIcon::fromTheme("document-save"), "Save");
+    saveAction->setToolTip("Save the configuration: files, windows, graph and generator (Ctrl+S)");
+    connect(saveAction, &QAction::triggered, this, &MainWindow::saveConfiguration);
+    toolBar->addSeparator();
 
     m_startAction = toolBar->addAction(QIcon::fromTheme("media-playback-start"), "Start");
     m_startAction->setShortcut(QKeySequence("F9"));
@@ -138,7 +151,9 @@ bool MainWindow::openFiles(const QStringList &filePaths)
 {
     bool ok = true;
     for (const QString &filePath : filePaths) {
-        if (filePath.endsWith(".uscxml", Qt::CaseInsensitive))
+        if (filePath.endsWith(".dpcfg", Qt::CaseInsensitive))
+            ok = loadConfiguration(filePath) && ok;
+        else if (filePath.endsWith(".uscxml", Qt::CaseInsensitive))
             ok = loadDiagnosticDescription(filePath) && ok;
         else
             ok = loadDatabase(filePath) && ok;
@@ -213,6 +228,132 @@ bool MainWindow::loadDatabase(const QString &filePath)
     return true;
 }
 
+QList<QPair<QString, QMdiSubWindow *>> MainWindow::namedWindows() const
+{
+    return {{"DiagnosticConsole", m_diagnosticConsoleWindow}, {"EcuState", m_ecuStateWindow},
+            {"Graphics", m_graphWindow}, {"Trace", m_traceWindow}, {"InteractiveGenerator", m_generatorWindow}};
+}
+
+void MainWindow::openConfiguration()
+{
+    const QString filePath = QFileDialog::getOpenFileName(this, "Open Configuration", QString(),
+                                                          "DiagProbe configurations (*.dpcfg);;All files (*)");
+    if (!filePath.isEmpty())
+        loadConfiguration(filePath);
+}
+
+bool MainWindow::saveConfiguration()
+{
+    if (m_configurationPath.isEmpty())
+        return saveConfigurationAs();
+    return saveConfigurationTo(m_configurationPath);
+}
+
+bool MainWindow::saveConfigurationAs()
+{
+    QString filePath = QFileDialog::getSaveFileName(this, "Save Configuration", m_configurationPath,
+                                                    "DiagProbe configurations (*.dpcfg)");
+    if (filePath.isEmpty())
+        return false;
+    if (!filePath.endsWith(".dpcfg", Qt::CaseInsensitive))
+        filePath += ".dpcfg";
+    return saveConfigurationTo(filePath);
+}
+
+bool MainWindow::saveConfigurationTo(const QString &filePath)
+{
+    QFile::remove(filePath); // QSettings would otherwise keep keys that are no longer used
+    QSettings settings(filePath, QSettings::IniFormat);
+    // Paths are saved relative to the configuration, so the setup can move with its files.
+    const QDir directory = QFileInfo(filePath).absoluteDir();
+    settings.beginGroup("DiagProbe");
+    settings.setValue("version", 1);
+    settings.setValue("diagnosticDescription", m_diagnosticDescriptionPath.isEmpty()
+                          ? QString() : directory.relativeFilePath(m_diagnosticDescriptionPath));
+    settings.setValue("database", m_messageDatabasePath.isEmpty()
+                          ? QString() : directory.relativeFilePath(m_messageDatabasePath));
+    settings.setValue("simulateEcu", m_simulateAction->isChecked());
+    settings.setValue("testerPresent", m_testerPresentAction->isChecked());
+    settings.setValue("mainWindow", saveGeometry());
+    settings.endGroup();
+
+    for (const auto &named : namedWindows()) {
+        settings.beginGroup("Window." + named.first);
+        settings.setValue("geometry", named.second->geometry());
+        settings.setValue("visible", named.second->isVisible());
+        settings.setValue("minimized", named.second->isMinimized());
+        settings.setValue("maximized", named.second->isMaximized());
+        settings.endGroup();
+    }
+    settings.beginGroup("Graphics");
+    m_graph->saveSettings(settings);
+    settings.endGroup();
+    settings.beginGroup("InteractiveGenerator");
+    m_generator->saveSettings(settings);
+    settings.endGroup();
+
+    settings.sync();
+    if (settings.status() != QSettings::NoError) {
+        QMessageBox::warning(this, "Save Configuration", QString("Could not save %1.").arg(filePath));
+        return false;
+    }
+    m_configurationPath = filePath;
+    updateTitle();
+    statusBar()->showMessage("Saved " + QFileInfo(filePath).fileName(), 3000);
+    return true;
+}
+
+bool MainWindow::loadConfiguration(const QString &filePath)
+{
+    QSettings settings(filePath, QSettings::IniFormat);
+    if (!QFileInfo::exists(filePath) || settings.status() != QSettings::NoError
+        || settings.value("DiagProbe/version").toInt() < 1) {
+        QMessageBox::warning(this, "Open Configuration",
+                             QString("Could not open %1:\nThis is not a DiagProbe configuration.").arg(filePath));
+        return false;
+    }
+    m_tester->stop();
+    const QDir directory = QFileInfo(filePath).absoluteDir();
+    settings.beginGroup("DiagProbe");
+    const QString description = settings.value("diagnosticDescription").toString();
+    const QString database = settings.value("database").toString();
+    if (!description.isEmpty())
+        loadDiagnosticDescription(QDir::cleanPath(directory.absoluteFilePath(description)));
+    if (!database.isEmpty())
+        loadDatabase(QDir::cleanPath(directory.absoluteFilePath(database)));
+    m_simulateAction->setChecked(settings.value("simulateEcu", true).toBool());
+    m_testerPresentAction->setChecked(settings.value("testerPresent", true).toBool());
+    restoreGeometry(settings.value("mainWindow").toByteArray());
+    settings.endGroup();
+
+    for (const auto &named : namedWindows()) {
+        settings.beginGroup("Window." + named.first);
+        QMdiSubWindow *window = named.second;
+        if (settings.contains("geometry")) {
+            window->widget()->show();
+            window->showNormal();
+            window->setGeometry(settings.value("geometry").toRect());
+            if (settings.value("maximized").toBool())
+                window->showMaximized();
+            else if (settings.value("minimized").toBool())
+                window->showMinimized();
+            if (!settings.value("visible", true).toBool())
+                window->close(); // only hides it
+        }
+        settings.endGroup();
+    }
+    settings.beginGroup("Graphics");
+    m_graph->loadSettings(settings);
+    settings.endGroup();
+    settings.beginGroup("InteractiveGenerator");
+    m_generator->loadSettings(settings);
+    settings.endGroup();
+
+    m_configurationPath = filePath;
+    updateTitle();
+    return true;
+}
+
 void MainWindow::startOrStopMeasurement()
 {
     if (m_tester->isRunning()) {
@@ -264,7 +405,9 @@ void MainWindow::updateTitle()
                                                                       : QFileInfo(m_diagnosticDescriptionPath).fileName();
     const QString database = m_messageDatabasePath.isEmpty() ? QString("no database")
                                                              : QFileInfo(m_messageDatabasePath).fileName();
-    setWindowTitle(QString("%1 · %2 - DiagProbe").arg(description, database));
+    const QString configuration = m_configurationPath.isEmpty() ? QString()
+                                                                : QFileInfo(m_configurationPath).fileName() + " — ";
+    setWindowTitle(QString("%1%2 · %3 - DiagProbe").arg(configuration, description, database));
 
     m_descriptionLabel->setText("ECU: " + description);
     m_databaseLabel->setText("Database: " + database);

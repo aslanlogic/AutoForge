@@ -2,7 +2,7 @@
 
 #include <QApplication>
 
-// Usage: DiagProbe [description.uscxml] [database.ffxml]
+// Usage: DiagProbe [configuration.dpcfg] [description.uscxml] [database.ffxml]
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);

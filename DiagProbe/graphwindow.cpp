@@ -11,6 +11,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QPainter>
+#include <QSettings>
 #include <QSplitter>
 #include <QTimer>
 #include <QToolButton>
@@ -593,6 +594,46 @@ bool GraphWindow::addSignal(int messageId, int signalId)
     rebuildLegend();
     m_plot->update();
     return true;
+}
+
+void GraphWindow::saveSettings(QSettings &settings) const
+{
+    settings.setValue("axes", m_axisMode->currentIndex());
+    settings.setValue("span", m_presetSpanIndex);
+    settings.beginWriteArray("signals", m_series.size());
+    for (int i = 0; i < m_series.size(); ++i) {
+        const ff::Message *message = m_database ? m_database->findMessage(m_series[i].messageId) : nullptr;
+        settings.setArrayIndex(i);
+        settings.setValue("message", message ? message->name : QString());
+        settings.setValue("signal", m_series[i].signal.name);
+        settings.setValue("visible", m_series[i].visible);
+    }
+    settings.endArray();
+}
+
+void GraphWindow::loadSettings(QSettings &settings)
+{
+    m_axisMode->setCurrentIndex(qBound(0, settings.value("axes", 0).toInt(), m_axisMode->count() - 1));
+    m_span->setCurrentIndex(qBound(0, settings.value("span", 0).toInt(), 2));
+    m_series.clear();
+    const int count = settings.beginReadArray("signals");
+    for (int i = 0; i < count && m_database; ++i) {
+        settings.setArrayIndex(i);
+        const QString messageName = settings.value("message").toString();
+        const QString signalName = settings.value("signal").toString();
+        for (const ff::Message &message : m_database->allMessages()) {
+            if (message.name != messageName)
+                continue;
+            for (const ff::SignalMapping &mapping : message.signalMappings) {
+                const ff::Signal *signal = m_database->findSignal(mapping.signalId);
+                if (signal && signal->name == signalName && addSignal(message.id, signal->id))
+                    m_series.last().visible = settings.value("visible", true).toBool();
+            }
+        }
+    }
+    settings.endArray();
+    rebuildLegend();
+    m_plot->update();
 }
 
 void GraphWindow::removeSignal(int index)
