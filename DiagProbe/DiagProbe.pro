@@ -35,5 +35,8 @@ HEADERS += \
     tracewindow.h \
     udpbus.h
 
+# The Diagnostic console uses the same icons as UDScribe's tree.
+RESOURCES += ../UDScribe/resources.qrc
+
 include(../usccore/usccore.pri)
 include(../ffcore/ffcore.pri)

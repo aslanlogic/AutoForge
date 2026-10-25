@@ -5,6 +5,7 @@
 
 #include <QComboBox>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
 #include <QPushButton>
 #include <QSplitter>
@@ -29,9 +30,11 @@ bool isTesterPresent(const QByteArray &request)
     return !request.isEmpty() && quint8(request[0]) == 0x3E;
 }
 
-QTreeWidgetItem *addHeading(QTreeWidgetItem *parent, const QString &text)
+// The icons are UDScribe's (see DiagProbe.pro), so both trees look alike.
+QTreeWidgetItem *addHeading(QTreeWidgetItem *parent, const QString &text, const QString &icon)
 {
     auto *heading = new QTreeWidgetItem(parent, {text});
+    heading->setIcon(0, QIcon(icon));
     QFont font = heading->font(0);
     font.setBold(true);
     heading->setFont(0, font);
@@ -174,7 +177,7 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     top->addWidget(panel);
     top->setChildrenCollapsible(false);
     top->setStretchFactor(1, 1);
-    top->setSizes({250, 520});
+    top->setSizes({290, 520}); // room for the icons and the names
 
     m_log = makeTable({"Time", "Dir", "Service", "Bytes", "Interpretation"});
     m_log->setFont(mono);
@@ -243,30 +246,31 @@ void DiagnosticConsole::showDescription(const usc::Database *description, const 
 
     auto addRequest = [](QTreeWidgetItem *heading, const QString &text, RequestKind kind, int id) {
         auto *item = new QTreeWidgetItem(heading, {text});
+        item->setIcon(0, heading->icon(0)); // the same icon as its service
         item->setData(0, KindRole, int(kind));
         item->setData(0, IdRole, id);
     };
     auto *root = new QTreeWidgetItem(m_requestTree, {fileName});
 
-    QTreeWidgetItem *sessions = addHeading(root, "0x10 DiagnosticSessionControl");
+    QTreeWidgetItem *sessions = addHeading(root, "0x10 DiagnosticSessionControl", ":/icons/session.svg");
     for (const Session &session : description->allSessions())
         addRequest(sessions, subFunctionToText(session.sessionType) + ' ' + session.name, RequestKind::Session, session.id);
 
-    QTreeWidgetItem *resets = addHeading(root, "0x11 ECUReset");
+    QTreeWidgetItem *resets = addHeading(root, "0x11 ECUReset", ":/icons/ecureset.svg");
     for (const ResetType &resetType : description->allResetTypes())
         addRequest(resets, subFunctionToText(resetType.resetType) + ' ' + resetType.name, RequestKind::Reset, resetType.id);
 
-    QTreeWidgetItem *reads = addHeading(root, "0x22 ReadDataByIdentifier");
+    QTreeWidgetItem *reads = addHeading(root, "0x22 ReadDataByIdentifier", ":/icons/dataidentifiers.svg");
     for (const DataIdentifier &did : description->allDataIdentifiers()) {
         if (isReadable(did))
             addRequest(reads, didToText(did.did) + ' ' + did.name, RequestKind::Read, did.id);
     }
 
-    QTreeWidgetItem *levels = addHeading(root, "0x27 SecurityAccess");
+    QTreeWidgetItem *levels = addHeading(root, "0x27 SecurityAccess", ":/icons/securityaccess.svg");
     for (const SecurityLevel &level : description->allSecurityLevels())
         addRequest(levels, subFunctionToText(level.requestSeed) + ' ' + level.name, RequestKind::Unlock, level.id);
 
-    QTreeWidgetItem *writes = addHeading(root, "0x2E WriteDataByIdentifier");
+    QTreeWidgetItem *writes = addHeading(root, "0x2E WriteDataByIdentifier", ":/icons/dataidentifiers.svg");
     for (const DataIdentifier &did : description->allDataIdentifiers()) {
         if (isWritable(did))
             addRequest(writes, didToText(did.did) + ' ' + did.name, RequestKind::Write, did.id);
