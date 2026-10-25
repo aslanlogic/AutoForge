@@ -26,6 +26,9 @@ struct PlotSeries
     QString label; // "EngineData.EngineSpeed"
     QColor color;
     bool visible = true;
+    bool zoomed = false; // the y axis shows viewLow..viewHigh instead of the signal's range
+    double viewLow = 0.0;
+    double viewHigh = 1.0;
     QVector<QPointF> points; // x = time in s, y = physical value
 };
 
@@ -34,6 +37,7 @@ struct PlotSeries
 //  - Legend: switch a signal on and off, remove it, see its current value.
 //  - Axes: one axis per signal, one shared axis, or each signal in its own lane.
 //  - Span: the last 10, 30 or 60 s; Pause freezes it. Hovering shows the values at that time.
+//  - Zoom: wheel for time, Ctrl+wheel for y, drag to move, double-click or Fit to see all again.
 class GraphWindow : public QWidget
 {
     Q_OBJECT
@@ -66,6 +70,7 @@ private:
     QToolButton *m_signalsButton;
     QComboBox *m_axisMode;
     QComboBox *m_span;
+    int m_presetSpanIndex = 0; // the 10/30/60 s choice that Fit goes back to
     QCheckBox *m_pause;
 };
 

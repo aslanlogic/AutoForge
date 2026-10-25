@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QPainter>
 #include <QSplitter>
 #include <QTimer>
@@ -16,6 +17,7 @@
 #include <QTreeWidget>
 
 #include <cmath>
+#include <functional>
 
 namespace {
 
@@ -74,10 +76,14 @@ QString valueText(const PlotSeries &series, double value, const ff::Database *da
 } // namespace
 
 // The drawing area of the Graphics window.
+//  - Wheel: zoom the time axis around the cursor.
+//  - Ctrl+wheel: zoom the y axis: over one signal's axis (or lane) only that signal, else all.
+//  - Drag: move the curves; dragging back in time pauses the graph.
+//  - Double-click: fit everything again and follow the measurement.
 class PlotWidget : public QWidget
 {
 public:
-    PlotWidget(const QVector<PlotSeries> *series, QWidget *parent = nullptr)
+    PlotWidget(QVector<PlotSeries> *series, QWidget *parent = nullptr)
         : QWidget(parent), m_series(series)
     {
         setMouseTracking(true);
@@ -86,18 +92,104 @@ public:
         QPalette palette = this->palette();
         palette.setColor(QPalette::Window, Qt::white);
         setPalette(palette);
+        setToolTip("Wheel: zoom time · Ctrl+wheel: zoom Y (over an axis: only that signal)\n"
+                   "Drag: move · Double-click: fit");
     }
 
     GraphWindow::AxisMode axisMode = GraphWindow::AxisMode::PerSignal;
     double span = 10.0;   // s
     double endTime = 0.0; // s; the right edge
     const ff::Database *database = nullptr;
+    bool live = true; // the right edge follows the measurement; false while paused
+    std::function<void()> onPan;        // the user moved the time axis: the graph pauses
+    std::function<void()> onSpanChange; // the user zoomed the time axis
+    std::function<void()> onFit;        // the user asked to see everything again
+
+    // Forgets every y zoom.
+    void fitY()
+    {
+        for (PlotSeries &series : *m_series)
+            series.zoomed = false;
+        m_sharedZoomed = false;
+        update();
+    }
 
 protected:
+    void wheelEvent(QWheelEvent *event) override
+    {
+        const QPointF position = event->position();
+        const double factor = event->angleDelta().y() > 0 ? 0.8 : 1.25;
+        const QRectF plot = plotRect();
+        if (event->modifiers() & Qt::ControlModifier) {
+            const QVector<int> targets = targetsAt(position);
+            QVector<QPair<double, double>> ranges = currentRanges();
+            for (int index : targets) {
+                const QRectF lane = laneOf(index, plot);
+                const auto &range = ranges[index];
+                const double fraction = qBound(0.0, (lane.bottom() - position.y()) / lane.height(), 1.0);
+                const double value = range.first + fraction * (range.second - range.first);
+                setRange(index, value - (value - range.first) * factor, value + (range.second - value) * factor);
+            }
+        } else {
+            const double newSpan = qBound(0.05, span * factor, 600.0);
+            if (live) {
+                span = newSpan; // keep the right edge at "now"
+            } else {
+                const double fraction = qBound(0.0, (position.x() - plot.left()) / plot.width(), 1.0);
+                const double time = endTime - span + fraction * span;
+                endTime = time + (1 - fraction) * newSpan;
+                span = newSpan;
+            }
+            if (onSpanChange)
+                onSpanChange();
+        }
+        update();
+        event->accept();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton)
+            return;
+        m_dragStart = event->pos();
+        m_dragTargets = targetsAt(event->pos());
+        m_dragRanges = currentRanges();
+        m_dragEndTime = endTime;
+        m_dragging = true;
+        setCursor(Qt::ClosedHandCursor);
+    }
+
     void mouseMoveEvent(QMouseEvent *event) override
     {
         m_hoverX = event->pos().x();
+        if (m_dragging) {
+            const QRectF plot = plotRect();
+            const QPointF delta = event->pos() - m_dragStart;
+            if (std::abs(delta.x()) > 2) {
+                endTime = m_dragEndTime - delta.x() / plot.width() * span;
+                if (onPan)
+                    onPan();
+            }
+            for (int index : m_dragTargets) {
+                const auto &range = m_dragRanges[index];
+                const double shift = delta.y() / laneOf(index, plot).height() * (range.second - range.first);
+                setRange(index, range.first + shift, range.second + shift);
+            }
+        }
         update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_dragging = false;
+        unsetCursor();
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *) override
+    {
+        fitY();
+        if (onFit)
+            onFit();
     }
 
     void leaveEvent(QEvent *) override
@@ -110,32 +202,27 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
-        QVector<const PlotSeries *> visible;
-        for (const PlotSeries &series : *m_series) {
-            if (series.visible)
-                visible.append(&series);
-        }
-
-        const int axisWidth = 52;
-        const int axisCount = axisMode == GraphWindow::AxisMode::PerSignal ? qMax(1, int(visible.size())) : 1;
-        const QRectF plot(axisWidth * axisCount + 6, 8, width() - axisWidth * axisCount - 26, height() - 30);
+        const QVector<int> visible = visibleIndexes();
+        const QRectF plot = plotRect();
         if (plot.width() < 20 || plot.height() < 20)
             return;
         const double startTime = endTime - span;
         auto xOf = [&](double t) { return plot.left() + (t - startTime) / span * plot.width(); };
 
-        // Time grid and labels.
-        painter.setPen(QColor(225, 225, 225));
-        const double step = span / 10.0;
+        // Time grid and labels, in steps of 1, 2 or 5 times a power of ten.
+        const double rough = span / 8.0;
+        const double power = std::pow(10.0, std::floor(std::log10(rough)));
+        const double step = rough / power < 2 ? power : rough / power < 5 ? 2 * power : 5 * power;
+        const int decimals = step >= 1 ? 0 : int(std::ceil(-std::log10(step) - 1e-9));
         for (double t = std::ceil(startTime / step) * step; t <= endTime + 1e-9; t += step) {
+            painter.setPen(QColor(225, 225, 225));
             painter.drawLine(QPointF(xOf(t), plot.top()), QPointF(xOf(t), plot.bottom()));
+            painter.setPen(Qt::darkGray);
+            if (t >= -1e-9 && xOf(t) > plot.left() + 15)
+                painter.drawText(QRectF(xOf(t) - 35, plot.bottom() + 2, 70, 18), Qt::AlignCenter,
+                                 QString::number(qMax(0.0, t), 'f', decimals) + " s");
         }
         painter.setPen(Qt::darkGray);
-        for (double t = std::ceil(startTime / (step * 2)) * step * 2; t <= endTime + 1e-9; t += step * 2) {
-            if (t >= 0)
-                painter.drawText(QRectF(xOf(t) - 30, plot.bottom() + 2, 60, 18), Qt::AlignCenter,
-                                 QString::number(t, 'f', 0) + " s");
-        }
         painter.drawRect(plot);
 
         if (visible.isEmpty()) {
@@ -143,88 +230,74 @@ protected:
             return;
         }
 
-        // The y range of each visible series, and the lane it is drawn in.
-        QVector<QPair<double, double>> ranges;
-        for (const PlotSeries *series : visible)
-            ranges.append(rangeOf(*series));
-        if (axisMode == GraphWindow::AxisMode::Shared) {
-            QPair<double, double> all = ranges.first();
-            for (const auto &range : ranges) {
-                all.first = qMin(all.first, range.first);
-                all.second = qMax(all.second, range.second);
-            }
-            for (auto &range : ranges)
-                range = all;
-        }
-        auto laneOf = [&](int index) {
-            if (axisMode != GraphWindow::AxisMode::Stacked)
-                return plot;
-            const double laneHeight = plot.height() / visible.size();
-            return QRectF(plot.left(), plot.top() + index * laneHeight, plot.width(), laneHeight);
-        };
+        const QVector<QPair<double, double>> ranges = currentRanges();
         auto yOf = [&](int index, double value) {
-            const QRectF lane = laneOf(index).adjusted(0, 4, 0, -4);
+            const QRectF lane = laneOf(index, plot);
             const auto &range = ranges[index];
             return lane.bottom() - (value - range.first) / (range.second - range.first) * lane.height();
         };
 
         // Axes.
-        for (int i = 0; i < visible.size(); ++i) {
-            const QRectF lane = laneOf(i).adjusted(0, 4, 0, -4);
-            const double x = axisMode == GraphWindow::AxisMode::PerSignal ? plot.left() - axisWidth * i - 2
-                                                                           : plot.left() - 2;
-            if (axisMode == GraphWindow::AxisMode::Shared && i > 0)
+        for (int position = 0; position < visible.size(); ++position) {
+            const int index = visible[position];
+            if (axisMode == GraphWindow::AxisMode::Shared && position > 0)
                 break;
-            painter.setPen(axisMode == GraphWindow::AxisMode::Shared ? Qt::darkGray : visible[i]->color);
+            const QRectF lane = laneOf(index, plot);
+            const double x = axisMode == GraphWindow::AxisMode::PerSignal ? plot.left() - AxisWidth * position - 2
+                                                                           : plot.left() - 2;
+            painter.setPen(axisMode == GraphWindow::AxisMode::Shared ? QColor(Qt::darkGray) : (*m_series)[index].color);
             painter.drawLine(QPointF(x, lane.top()), QPointF(x, lane.bottom()));
             for (int tick = 0; tick <= 4; ++tick) {
-                const double value = ranges[i].first + (ranges[i].second - ranges[i].first) * tick / 4.0;
-                const double y = yOf(i, value);
                 if (axisMode == GraphWindow::AxisMode::Stacked && (tick == 1 || tick == 3))
                     continue;
+                const double value = ranges[index].first + (ranges[index].second - ranges[index].first) * tick / 4.0;
+                const double y = yOf(index, value);
                 painter.drawLine(QPointF(x - 3, y), QPointF(x, y));
                 // In lanes, the top and bottom labels move inwards so neighbouring lanes do not overlap.
                 double shift = 0;
                 if (axisMode == GraphWindow::AxisMode::Stacked)
                     shift = tick == 4 ? 6 : tick == 0 ? -6 : 0;
-                painter.drawText(QRectF(x - axisWidth, y - 8 + shift, axisWidth - 5, 16),
-                                 Qt::AlignRight | Qt::AlignVCenter, formatNumber(std::round(value * 100) / 100));
+                painter.drawText(QRectF(x - AxisWidth, y - 8 + shift, AxisWidth - 5, 16),
+                                 Qt::AlignRight | Qt::AlignVCenter, QString::number(value, 'g', 5));
             }
-            if (axisMode == GraphWindow::AxisMode::Stacked && i > 0) {
+            if (axisMode == GraphWindow::AxisMode::Stacked && position > 0) {
                 painter.setPen(QColor(210, 210, 210));
-                painter.drawLine(QPointF(plot.left(), laneOf(i).top()), QPointF(plot.right(), laneOf(i).top()));
+                painter.drawLine(QPointF(plot.left(), lane.top() - 4), QPointF(plot.right(), lane.top() - 4));
             }
         }
 
         // The curves.
         painter.save();
         painter.setClipRect(plot);
-        for (int i = 0; i < visible.size(); ++i) {
-            const QVector<QPointF> &points = visible[i]->points;
+        for (int index : visible) {
+            const QVector<QPointF> &points = (*m_series)[index].points;
             QPolygonF line;
             auto first = std::lower_bound(points.begin(), points.end(), startTime,
                                           [](const QPointF &point, double t) { return point.x() < t; });
             if (first != points.begin())
                 --first; // one more to the left, so the line starts at the edge
-            for (auto it = first; it != points.end(); ++it)
-                line << QPointF(xOf(it->x()), yOf(i, it->y()));
-            painter.setPen(QPen(visible[i]->color, 1.6));
+            for (auto it = first; it != points.end(); ++it) {
+                line << QPointF(xOf(it->x()), yOf(index, it->y()));
+                if (it->x() > endTime)
+                    break; // one past the right edge is enough
+            }
+            painter.setPen(QPen((*m_series)[index].color, 1.6));
             painter.drawPolyline(line);
         }
         painter.restore();
 
         // The cursor: a line and every value at that time.
-        if (m_hoverX >= plot.left() && m_hoverX <= plot.right()) {
+        if (m_hoverX >= plot.left() && m_hoverX <= plot.right() && !m_dragging) {
             const double t = startTime + (m_hoverX - plot.left()) / plot.width() * span;
             painter.setPen(QPen(Qt::black, 1, Qt::DashLine));
             painter.drawLine(QPointF(m_hoverX, plot.top()), QPointF(m_hoverX, plot.bottom()));
             QStringList lines = {QString("t = %1 s").arg(t, 0, 'f', 3)};
             QVector<QColor> colors = {Qt::black};
-            for (int i = 0; i < visible.size(); ++i) {
+            for (int index : visible) {
                 double value;
-                if (valueAt(*visible[i], t, &value)) {
-                    lines << visible[i]->signal.name + ": " + valueText(*visible[i], value, database);
-                    colors << visible[i]->color;
+                if (valueAt((*m_series)[index], t, &value)) {
+                    lines << (*m_series)[index].signal.name + ": " + valueText((*m_series)[index], value, database);
+                    colors << (*m_series)[index].color;
                 }
             }
             const QFontMetrics metrics(font());
@@ -248,8 +321,105 @@ protected:
     }
 
 private:
-    const QVector<PlotSeries> *m_series;
+    static const int AxisWidth = 52;
+
+    QVector<int> visibleIndexes() const
+    {
+        QVector<int> visible;
+        for (int i = 0; i < m_series->size(); ++i) {
+            if ((*m_series)[i].visible)
+                visible.append(i);
+        }
+        return visible;
+    }
+
+    QRectF plotRect() const
+    {
+        const int axisCount = axisMode == GraphWindow::AxisMode::PerSignal ? qMax(1, int(visibleIndexes().size())) : 1;
+        return QRectF(AxisWidth * axisCount + 6, 8, width() - AxisWidth * axisCount - 26, height() - 30);
+    }
+
+    // Where series `index` is drawn: the whole plot, or its lane.
+    QRectF laneOf(int index, const QRectF &plot) const
+    {
+        const QVector<int> visible = visibleIndexes();
+        if (axisMode != GraphWindow::AxisMode::Stacked || !visible.contains(index))
+            return plot.adjusted(0, 4, 0, -4);
+        const double laneHeight = plot.height() / visible.size();
+        return QRectF(plot.left(), plot.top() + visible.indexOf(index) * laneHeight, plot.width(), laneHeight)
+            .adjusted(0, 4, 0, -4);
+    }
+
+    // The y range of every series (by index into *m_series), with its zoom.
+    QVector<QPair<double, double>> currentRanges() const
+    {
+        QVector<QPair<double, double>> ranges;
+        for (const PlotSeries &series : *m_series)
+            ranges.append(series.zoomed ? qMakePair(series.viewLow, series.viewHigh) : rangeOf(series));
+        if (axisMode == GraphWindow::AxisMode::Shared) {
+            QPair<double, double> all(0, 0);
+            bool first = true;
+            for (int index : visibleIndexes()) {
+                const auto range = rangeOf((*m_series)[index]);
+                all = first ? range : qMakePair(qMin(all.first, range.first), qMax(all.second, range.second));
+                first = false;
+            }
+            if (m_sharedZoomed)
+                all = qMakePair(m_sharedLow, m_sharedHigh);
+            for (auto &range : ranges)
+                range = all;
+        }
+        return ranges;
+    }
+
+    void setRange(int index, double low, double high)
+    {
+        if (high - low < 1e-9)
+            return;
+        if (axisMode == GraphWindow::AxisMode::Shared) {
+            m_sharedZoomed = true;
+            m_sharedLow = low;
+            m_sharedHigh = high;
+            return;
+        }
+        PlotSeries &series = (*m_series)[index];
+        series.zoomed = true;
+        series.viewLow = low;
+        series.viewHigh = high;
+    }
+
+    // The series a y zoom or move at this point acts on: the one whose axis or lane it is over, else all.
+    QVector<int> targetsAt(const QPointF &position) const
+    {
+        const QVector<int> visible = visibleIndexes();
+        const QRectF plot = plotRect();
+        if (visible.isEmpty())
+            return {};
+        if (axisMode == GraphWindow::AxisMode::Shared)
+            return {visible.first()};
+        if (axisMode == GraphWindow::AxisMode::Stacked) {
+            for (int index : visible) {
+                if (laneOf(index, plot).adjusted(0, -4, 0, 4).contains(QPointF(plot.left() + 1, position.y())))
+                    return {index};
+            }
+            return {};
+        }
+        if (position.x() < plot.left()) {
+            const int axis = int((plot.left() - position.x()) / AxisWidth);
+            return axis < visible.size() ? QVector<int>{visible[axis]} : QVector<int>{};
+        }
+        return visible;
+    }
+
+    QVector<PlotSeries> *m_series;
     double m_hoverX = -1;
+    bool m_sharedZoomed = false;
+    double m_sharedLow = 0, m_sharedHigh = 1;
+    bool m_dragging = false;
+    QPoint m_dragStart;
+    QVector<int> m_dragTargets;
+    QVector<QPair<double, double>> m_dragRanges;
+    double m_dragEndTime = 0;
 };
 
 GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
@@ -278,12 +448,44 @@ GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
     m_span->addItem("10 s", 10.0);
     m_span->addItem("30 s", 30.0);
     m_span->addItem("60 s", 60.0);
-    connect(m_span, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] {
+    connect(m_span, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index < 3)
+            m_presetSpanIndex = index;
         m_plot->span = m_span->currentData().toDouble();
         m_plot->update();
     });
 
     m_pause = new QCheckBox("Pause");
+    connect(m_pause, &QCheckBox::toggled, this, [this](bool paused) { m_plot->live = !paused; });
+
+    auto *fitButton = new QToolButton;
+    fitButton->setText("Fit");
+    fitButton->setToolTip("Undo every zoom and follow the measurement again (or double-click the graph)");
+    auto fit = [this] {
+        m_plot->fitY();
+        m_pause->setChecked(false);
+        // Back to the chosen span; a zoomed span is the extra item at the end.
+        QSignalBlocker blocker(m_span);
+        if (m_span->count() > 3)
+            m_span->removeItem(3);
+        m_span->setCurrentIndex(m_presetSpanIndex);
+        m_plot->span = m_span->currentData().toDouble();
+        if (m_tester->isRunning())
+            m_plot->endTime = qMax(m_plot->span, m_tester->time());
+        m_plot->update();
+    };
+    connect(fitButton, &QToolButton::clicked, this, fit);
+    m_plot->onFit = fit;
+    m_plot->onPan = [this] { m_pause->setChecked(true); };
+    m_plot->onSpanChange = [this] {
+        // Show the zoomed span in the span box, as an extra item.
+        QSignalBlocker blocker(m_span);
+        if (m_span->count() <= 3)
+            m_span->addItem(QString());
+        m_span->setItemText(3, QString::number(m_plot->span, 'g', 3) + " s (zoomed)");
+        m_span->setItemData(3, m_plot->span);
+        m_span->setCurrentIndex(3);
+    };
 
     auto *bar = new QHBoxLayout;
     bar->addWidget(m_signalsButton);
@@ -292,6 +494,7 @@ GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
     bar->addWidget(new QLabel("Span:"));
     bar->addWidget(m_span);
     bar->addWidget(m_pause);
+    bar->addWidget(fitButton);
     bar->addStretch();
 
     m_legend = new QTreeWidget;
