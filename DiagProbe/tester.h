@@ -8,7 +8,6 @@
 #include <QObject>
 #include <QSet>
 
-class EcuSimulator;
 class QTimer;
 class UdpBus;
 
@@ -33,11 +32,9 @@ public:
     const usc::Database *description() const { return m_description; }
     const ff::Database *database() const { return m_database; }
 
-    // simulateEcu also starts a simulated ECU on remotePort that answers to localPort.
-    bool start(bool simulateEcu, QString *errorMessage);
+    bool start(QString *errorMessage);
     void stop();
     bool isRunning() const { return m_running; }
-    bool isSimulating() const { return m_simulating; }
     // Seconds since the measurement started.
     double time() const;
 
@@ -87,10 +84,8 @@ private:
     const usc::Database *m_description = nullptr;
     const ff::Database *m_database = nullptr;
     UdpBus *m_bus;
-    EcuSimulator *m_simulator;
     QElapsedTimer m_clock;
     bool m_running = false;
-    bool m_simulating = false;
     quint32 m_requestId = 0x7E0;
     quint32 m_responseId = 0x7E8;
 

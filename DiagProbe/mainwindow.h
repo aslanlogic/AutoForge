@@ -99,7 +99,6 @@ private:
     QMdiSubWindow *m_graphWindow = nullptr;
 
     QAction *m_startAction = nullptr;
-    QAction *m_simulateAction = nullptr;
     QAction *m_testerPresentAction = nullptr;
 
     QLabel *m_descriptionLabel = nullptr; // in the status bar

@@ -3,8 +3,8 @@
 
 #include <QByteArray>
 
-// Values the diagnostic description does not (yet) contain, shared by the tester
-// and the simulated ECU so both sides agree.
+// Values the diagnostic description does not (yet) contain. The ECU's UDS server
+// must use the same ones.
 
 // S3server: without a request for this long the ECU falls back to the default session.
 const int S3Time = 5000; // ms

@@ -1,7 +1,6 @@
 #include "tester.h"
 #include "decoding.h"
 #include "diagdefaults.h"
-#include "ecusimulator.h"
 #include "udpbus.h"
 
 #include <QTimer>
@@ -9,7 +8,6 @@
 Tester::Tester(QObject *parent)
     : QObject(parent)
     , m_bus(new UdpBus(this))
-    , m_simulator(new EcuSimulator(this))
     , m_responseTimer(new QTimer(this))
     , m_testerPresentTimer(new QTimer(this))
     , m_s3Timer(new QTimer(this))
@@ -29,7 +27,7 @@ void Tester::setDatabases(const usc::Database *description, const ff::Database *
     m_database = database;
 }
 
-bool Tester::start(bool simulateEcu, QString *errorMessage)
+bool Tester::start(QString *errorMessage)
 {
     stop();
 
@@ -66,30 +64,14 @@ bool Tester::start(bool simulateEcu, QString *errorMessage)
         *errorMessage = "DiagProbe only talks UDP unicast for now.";
         return false;
     }
-    if (simulateEcu && localPort == remotePort) {
-        *errorMessage = QString("The simulated ECU needs its own port, but local and remote port are both %1.")
-                            .arg(localPort);
-        return false;
-    }
 
     const QHostAddress bindAddress(localAddress);
     if (!m_bus->open(bindAddress, quint16(localPort), QHostAddress(remoteAddress), quint16(remotePort), idSize,
                      errorMessage))
         return false;
-    if (simulateEcu) {
-        // The simulated ECU answers on this PC.
-        const QHostAddress testerAddress = bindAddress == QHostAddress::AnyIPv4 || bindAddress.isNull()
-            ? QHostAddress(QHostAddress::LocalHost) : bindAddress;
-        if (!m_simulator->start(m_description, m_database, quint16(remotePort), testerAddress, quint16(localPort),
-                                idSize, errorMessage)) {
-            m_bus->close();
-            return false;
-        }
-    }
 
     m_clock.start();
     m_running = true;
-    m_simulating = simulateEcu;
     m_receivedCount = 0;
     m_sentCount = 0;
     m_pendingRequest.clear();
@@ -110,12 +92,10 @@ void Tester::stop()
     m_responseTimer->stop();
     m_testerPresentTimer->stop();
     m_s3Timer->stop();
-    m_simulator->stop();
     m_bus->close();
     m_pendingRequest.clear();
     m_unlockLevelId = 0;
     m_running = false;
-    m_simulating = false;
     emit runningChanged(false);
     emit stateChanged();
 }

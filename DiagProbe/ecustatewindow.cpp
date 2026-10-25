@@ -45,7 +45,7 @@ void EcuStateWindow::refresh()
         m_lastResponse->setText(m_tester->lastResponse().isEmpty() ? "—" : m_tester->lastResponse());
         return;
     }
-    m_measurement->setText(m_tester->isSimulating() ? "Running (simulated ECU)" : "Running");
+    m_measurement->setText("Running");
 
     const usc::Database *description = m_tester->description();
     const usc::Session *session = description ? description->findSession(m_tester->sessionId()) : nullptr;

@@ -65,9 +65,6 @@ QVector<DecodedValue> decodeDataRecord(const usc::Database &description, const u
 // hex for Bytes. Returns false and says why if the text does not fit.
 bool encodePlacement(const usc::Database &description, const usc::DataTypeMapping &mapping,
                      const QString &text, QByteArray *record, QString *errorMessage);
-// The value a simulated ECU starts with: the middle of the data type's range, or "SIM-<name>" text.
-void encodeInitialValue(const usc::Database &description, const usc::DataTypeMapping &mapping,
-                        const QString &didName, QByteArray *record);
 
 QString serviceName(quint8 serviceId);    // "ReadDataByIdentifier"
 QString nrcName(quint8 nrc);              // "requestOutOfRange"

@@ -11,7 +11,6 @@ DEFINES += EXAMPLES_DIR=\\\"$$clean_path($$PWD/../examples)\\\"
 SOURCES += \
     decoding.cpp \
     diagnosticconsole.cpp \
-    ecusimulator.cpp \
     ecustatewindow.cpp \
     generatorwindow.cpp \
     graphwindow.cpp \
@@ -26,7 +25,6 @@ HEADERS += \
     decoding.h \
     diagdefaults.h \
     diagnosticconsole.h \
-    ecusimulator.h \
     ecustatewindow.h \
     generatorwindow.h \
     graphwindow.h \

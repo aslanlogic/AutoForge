@@ -250,26 +250,6 @@ bool encodePlacement(const usc::Database &description, const usc::DataTypeMappin
     return true;
 }
 
-void encodeInitialValue(const usc::Database &description, const usc::DataTypeMapping &mapping,
-                        const QString &didName, QByteArray *record)
-{
-    const usc::DataType *dataType = description.findDataType(mapping.dataTypeId);
-    if (!dataType)
-        return;
-    QString error;
-    if (dataType->valueType == usc::DataType::ValueType::Ascii) {
-        encodePlacement(description, mapping, ("SIM-" + didName).left(dataType->length / 8), record, &error);
-    } else if (dataType->valueType == usc::DataType::ValueType::Bytes) {
-        QByteArray bytes(dataType->length / 8, '\0');
-        for (int i = 0; i < bytes.size(); ++i)
-            bytes[i] = char(0x10 + i);
-        record->replace(firstByte(mapping), bytes.size(), bytes);
-    } else {
-        const double middle = (dataType->minimum + dataType->maximum) / 2;
-        encodePlacement(description, mapping, QString::number(middle, 'g', 17), record, &error);
-    }
-}
-
 QString serviceName(quint8 serviceId)
 {
     switch (serviceId) {

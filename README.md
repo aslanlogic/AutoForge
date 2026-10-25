@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/diagprobe.png" alt="DiagProbe talking to a simulated ECU: Diagnostic console, ECU state, Graphics, Trace and Interactive generator" width="100%">
+  <img src="docs/screenshots/diagprobe.png" alt="DiagProbe talking to an ECU: Diagnostic console, ECU state, Graphics, Trace and Interactive generator" width="100%">
 </p>
 
 ---
@@ -34,7 +34,7 @@ FrameForge and UDScribe each keep their data in a small, self-contained library 
 
 ## DiagProbe — the tester
 
-DiagProbe is a desktop of movable windows. Start a measurement and it talks UDS to the ECU described in the `.uscxml`, while decoding all other bus traffic with the `.ffxml`. No hardware is needed to try it: tick **Simulate ECU** and DiagProbe starts an ECU of its own that answers exactly as the description says.
+DiagProbe is a desktop of movable windows. Start a measurement and it talks UDS to the ECU described in the `.uscxml`, while decoding all other bus traffic with the `.ffxml`.
 
 ### Diagnostic console
 
@@ -85,14 +85,7 @@ Open it again with **File → Open Configuration** or `DiagProbe setup.dpcfg`.
 ### Under the hood
 
 - **UDS client:** waits P2, or P2* after `0x78` response pending, with the timing the ECU reports in its `0x50` response. It sends TesterPresent (`3E 80`) every 2 s outside the default session and follows S3, so it knows when the ECU has fallen back to default.
-- **Simulated ECU:** built from the `.uscxml` alone.
-  - Sessions with their own P2/P2*.
-  - Security access with random seeds, a limit on wrong keys (then `0x36`, then a `0x37` lockout) and `0x24` for a key without a seed.
-  - Resets back to default and locked.
-  - DIDs kept in memory, so writes stick.
-  - The NRCs `0x11 0x12 0x13 0x31 0x33 0x7E` where they belong.
-  - Writes in the programming session answer `0x78` first, to exercise P2*.
-  - Cyclic `.ffxml` messages with slowly moving signal values.
+- **Unlocking:** *Request seed and send key* computes the key itself and tracks which levels the ECU has unlocked; a session change or reset locks them again.
 - **ECU state window:** current session, unlocked levels, S3 and the last response.
 
 **Services supported today:** `0x10` DiagnosticSessionControl · `0x11` ECUReset · `0x22` ReadDataByIdentifier · `0x27` SecurityAccess · `0x2E` WriteDataByIdentifier · `0x3E` TesterPresent. More are added as the project goes.
@@ -141,12 +134,13 @@ make -j$(nproc)
 
 Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `usccore`, FrameForge, UDScribe and DiagProbe.
 
-### Try it in one minute
+### Try it with the examples
 
 1. Run **DiagProbe** (`build/DiagProbe/DiagProbe`).
 2. **File → Open Examples** (Ctrl+E). This loads `examples/BodyECU.uscxml` and `examples/Vehicle.ffxml`.
-3. Press **Start** (F9). *Simulate ECU* is on, so a simulated ECU answers on this PC.
-4. Try a little scenario:
+3. Run an ECU that implements `BodyECU.uscxml` (for example your own UDS server): it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
+4. Press **Start** (F9).
+5. Try a little scenario:
    - read **0xF190 VIN**;
    - try to write **0x0200 Odometer**: red chips, then `0x31`;
    - switch to **0x03 Extended**: `0x33` now;
@@ -177,10 +171,10 @@ DiagProbe currently talks **UDP**. Every datagram carries one whole message:
 ```
 
 - UDS requests use the `.uscxml` **request ID** (`0x7E0` in the example) and responses use the **response ID** (`0x7E8`). Bus messages use their `.ffxml` frame IDs.
-- DiagProbe listens on `localPort` and sends to `remoteAddress:remotePort`; the simulated ECU uses the opposite pair.
+- DiagProbe listens on `localPort` and sends to `remoteAddress:remotePort`; the ECU uses the opposite pair.
 - The **UART** framing that FrameForge and UDScribe describe is: `[ID][DLC][payload][CRC]`, COBS-encoded and ended with `0x00`, with CRC-8/16/32 in fixed, documented variants.
 
-> **Security access key:** DiagProbe and its simulated ECU share a placeholder algorithm, `key[i] = seed[i mod n] XOR 0x5A XOR i`, in [`DiagProbe/diagdefaults.h`](DiagProbe/diagdefaults.h). Key algorithms are tester secrets, so they are deliberately not part of the `.uscxml`.
+> **Security access key:** DiagProbe uses a placeholder algorithm, which the ECU must use too: `key[i] = seed[i mod n] XOR 0x5A XOR i`, in [`DiagProbe/diagdefaults.h`](DiagProbe/diagdefaults.h). Key algorithms are tester secrets, so they are deliberately not part of the `.uscxml`.
 
 ---
 
@@ -192,7 +186,7 @@ AutoForge/
 ├── usccore/       library: diagnostic description model + .uscxml storage                  (namespace usc)
 ├── FrameForge/    app: message database editor
 ├── UDScribe/      app: diagnostic description editor
-├── DiagProbe/     app: tester, UDP bus, simulated ECU, windows
+├── DiagProbe/     app: tester, UDP bus, windows
 ├── examples/      Vehicle.ffxml, BodyECU.uscxml
 └── docs/          screenshots
 ```

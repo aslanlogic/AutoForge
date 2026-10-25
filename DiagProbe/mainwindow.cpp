@@ -130,10 +130,6 @@ void MainWindow::setupToolBar()
     m_startAction->setShortcut(QKeySequence("F9"));
     connect(m_startAction, &QAction::triggered, this, &MainWindow::startOrStopMeasurement);
 
-    m_simulateAction = toolBar->addAction("Simulate ECU");
-    m_simulateAction->setCheckable(true);
-    m_simulateAction->setChecked(true);
-    m_simulateAction->setToolTip("Start a simulated ECU inside DiagProbe that answers on the remote port");
 
     m_testerPresentAction = toolBar->addAction("TesterPresent (S3)");
     m_testerPresentAction->setCheckable(true);
@@ -296,7 +292,6 @@ bool MainWindow::loadConfiguration(const QString &filePath)
         loadDiagnosticDescription(QDir::cleanPath(directory.absoluteFilePath(description)));
     if (!database.isEmpty())
         loadDatabase(QDir::cleanPath(directory.absoluteFilePath(database)));
-    m_simulateAction->setChecked(settings.value("simulateEcu", true).toBool());
     m_testerPresentAction->setChecked(settings.value("testerPresent", true).toBool());
     restoreGeometry(settings.value("mainWindow").toByteArray());
     settings.endGroup();
@@ -339,7 +334,6 @@ void MainWindow::writeConfiguration(QSettings &settings, const QDir &directory) 
                           ? QString() : directory.relativeFilePath(m_diagnosticDescriptionPath));
     settings.setValue("database", m_messageDatabasePath.isEmpty()
                           ? QString() : directory.relativeFilePath(m_messageDatabasePath));
-    settings.setValue("simulateEcu", m_simulateAction->isChecked());
     settings.setValue("testerPresent", m_testerPresentAction->isChecked());
     settings.setValue("mainWindow", saveGeometry());
     settings.endGroup();
@@ -414,7 +408,7 @@ void MainWindow::startOrStopMeasurement()
         return;
     }
     QString error;
-    if (!m_tester->start(m_simulateAction->isChecked(), &error))
+    if (!m_tester->start(&error))
         QMessageBox::warning(this, "Start Measurement", error);
 }
 
@@ -424,7 +418,6 @@ void MainWindow::updateMeasurementActions()
     m_startAction->setText(running ? "Stop" : "Start");
     m_startAction->setIcon(QIcon::fromTheme(running ? "media-playback-stop" : "media-playback-start"));
     m_startAction->setToolTip(running ? "Stop the measurement (F9)" : "Start the measurement (F9)");
-    m_simulateAction->setEnabled(!running);
     m_lastFrameCount = 0;
     updateStatus();
 }
