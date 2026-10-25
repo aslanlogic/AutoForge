@@ -13,6 +13,7 @@ class QPushButton;
 class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QVBoxLayout;
 class Tester;
 
 // The Diagnostic console: everything for talking to the ECU in one window.
@@ -65,6 +66,7 @@ private:
     // Highlights the response for a moment, so a new one is seen even with the same bytes.
     void flashResponse();
     void applyResponseStyle();
+    void updatePanelStretch();
     void send();
     bool buildWriteRequest(int dataIdentifierId, QByteArray *request, QString *errorMessage) const;
 
@@ -78,6 +80,7 @@ private:
     const usc::Database *m_description = nullptr;
 
     QTreeWidget *m_requestTree;
+    QVBoxLayout *m_panelLayout;
     QLabel *m_title;
     QLabel *m_prerequisites;
     QLabel *m_valuesLabel;

@@ -156,7 +156,7 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     m_decodedTable = makeTable({"Name", "Physical", "Unit", "Value table", "Raw"});
 
     auto *panel = new QWidget;
-    auto *panelLayout = new QVBoxLayout(panel);
+    auto *panelLayout = m_panelLayout = new QVBoxLayout(panel);
     panelLayout->addWidget(m_title);
     panelLayout->addWidget(m_prerequisites);
     panelLayout->addWidget(m_valuesLabel);
@@ -167,7 +167,7 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     panelLayout->addWidget(m_responseText);
     panelLayout->addWidget(m_decodedTable, 6);
     // Takes the free space when the tables are hidden, so the labels stay together at the top.
-    panelLayout->addStretch(1);
+    panelLayout->addStretch(1); // see updatePanelStretch()
 
     auto *top = new QSplitter(Qt::Horizontal);
     top->addWidget(m_requestTree);
@@ -509,6 +509,7 @@ void DiagnosticConsole::updateExchange()
         m_responseBytes->clear();
         m_responseText->clear();
         m_decodedTable->hide();
+        updatePanelStretch();
         return;
     }
     m_requestBytes->setText("Request:   " + hexBytes(exchange.request));
@@ -558,6 +559,15 @@ void DiagnosticConsole::updateExchange()
     }
     m_decodedTable->resizeColumnsToContents();
     stretchLastColumn(m_decodedTable);
+    updatePanelStretch();
+}
+
+void DiagnosticConsole::updatePanelStretch()
+{
+    // The tables take all the free height; only with no table showing does the
+    // spacer at the bottom take it, so the labels stay together at the top.
+    const bool tableShown = !m_valueTable->isHidden() || !m_decodedTable->isHidden();
+    m_panelLayout->setStretch(m_panelLayout->count() - 1, tableShown ? 0 : 1);
 }
 
 void DiagnosticConsole::flashResponse()
