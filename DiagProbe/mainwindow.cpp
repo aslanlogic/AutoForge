@@ -98,7 +98,6 @@ void MainWindow::setupMenus()
                         this, &MainWindow::openDiagnosticDescription, QKeySequence::Open);
     fileMenu->addAction(QIcon::fromTheme("document-open"), "Open Data&base...",
                         this, &MainWindow::openDatabase, QKeySequence("Ctrl+Shift+O"));
-    fileMenu->addAction("Open &Examples", this, &MainWindow::openExamples, QKeySequence("Ctrl+E"));
     fileMenu->addSeparator();
     fileMenu->addAction(QIcon::fromTheme("document-open"), "Open &Configuration...",
                         this, &MainWindow::openConfiguration, QKeySequence("Ctrl+Shift+L"));
@@ -170,12 +169,6 @@ void MainWindow::openDatabase()
                                                           "FrameForge files (*.ffxml);;All files (*)");
     if (!filePath.isEmpty())
         loadDatabase(filePath);
-}
-
-void MainWindow::openExamples()
-{
-    const QDir examples(EXAMPLES_DIR);
-    openFiles({examples.filePath("BodyECU.uscxml"), examples.filePath("Vehicle.ffxml")});
 }
 
 bool MainWindow::loadDiagnosticDescription(const QString &filePath)

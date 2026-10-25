@@ -5,9 +5,6 @@ CONFIG += c++17
 TARGET = DiagProbe
 TEMPLATE = app
 
-# File → Open Examples loads the example files from here.
-DEFINES += EXAMPLES_DIR=\\\"$$clean_path($$PWD/../examples)\\\"
-
 SOURCES += \
     decoding.cpp \
     diagnosticconsole.cpp \

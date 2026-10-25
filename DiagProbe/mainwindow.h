@@ -54,7 +54,6 @@ private:
     void setupToolBar();
     void openDiagnosticDescription();
     void openDatabase();
-    void openExamples();
     bool loadDiagnosticDescription(const QString &filePath);
     bool loadDatabase(const QString &filePath);
     void openConfiguration();

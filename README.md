@@ -137,7 +137,7 @@ Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `us
 ### Try it with the examples
 
 1. Run **DiagProbe** (`build/DiagProbe/DiagProbe`).
-2. **File → Open Examples** (Ctrl+E). This loads `examples/BodyECU.uscxml` and `examples/Vehicle.ffxml`.
+2. Open `examples/BodyECU.uscxml` with **File → Open Diagnostic Description** (Ctrl+O) and `examples/Vehicle.ffxml` with **File → Open Database** (Ctrl+Shift+O).
 3. Run an ECU that implements `BodyECU.uscxml` (for example your own UDS server): it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
 4. Press **Start** (F9).
 5. Try a little scenario:
