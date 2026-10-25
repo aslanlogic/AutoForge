@@ -5,6 +5,7 @@
 #   usccore/     diagnostic description, .uscxml files (QtCore only)
 #   UDScribe/    the diagnostic description editor (GUI)
 #   DiagProbe/   the diagnostic tester (GUI); uses both libraries
+#   UdpSim/      a simulated BodyECU on UDP for trying DiagProbe (plain C++, no Qt)
 
 TEMPLATE = subdirs
 
@@ -13,7 +14,8 @@ SUBDIRS = \
     FrameForge \
     usccore \
     UDScribe \
-    DiagProbe
+    DiagProbe \
+    UdpSim
 
 # Build each library before the program that links against it.
 FrameForge.depends = ffcore

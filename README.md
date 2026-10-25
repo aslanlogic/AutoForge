@@ -118,6 +118,29 @@ One file describes one ECU: everything a tester needs to drive it, and everythin
 
 ---
 
+## UdpSim — a simulated ECU
+
+A small command-line program that plays the BodyECU of [`examples/BodyECU.uscxml`](examples/BodyECU.uscxml) on the bus of [`examples/Vehicle.ffxml`](examples/Vehicle.ffxml), so DiagProbe can be tried without hardware. It is written the way a real ECU's UDS server would be: by hand, straight from the description, in plain **C++17 with only the standard library** (plus the POSIX socket API for UDP, all in [`udpsocket.cpp`](UdpSim/udpsocket.cpp)), with no Qt and no parsing of the files.
+
+- **UDS server** ([`bodyecu.cpp`](UdpSim/bodyecu.cpp)):
+  - the three sessions with their P2/P2*, the three resets, and both security levels;
+  - wrong keys count up to `0x36`, then a `0x37` lockout; a key without a seed gives `0x24`;
+  - all eight DIDs, kept in memory so writes stick;
+  - every NRC the description implies; writes in the programming session answer `0x78` first;
+  - S3: without requests it falls back to the default session.
+- **Bus traffic** ([`vehiclebus.cpp`](UdpSim/vehiclebus.cpp)):
+  - EngineData, VehicleData and Dashboard at their cycle times, following a little drive: the engine revs with the speed, the gear follows, the coolant warms up and the fuel goes down;
+  - it reads the tester's **BodyCommands** and prints them; the commanded interior light is what DID `0x0500` reports.
+
+```bash
+build/UdpSim/UdpSim                       # tester on this PC
+build/UdpSim/UdpSim --tester 192.168.1.20 # tester on another PC
+```
+
+It prints every UDS request and response it handles. Ctrl+C stops it.
+
+---
+
 ## Getting started
 
 ### Build
@@ -132,13 +155,13 @@ qmake ../AutoForge.pro
 make -j$(nproc)
 ```
 
-Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `usccore`, FrameForge, UDScribe and DiagProbe.
+Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `usccore`, FrameForge, UDScribe, DiagProbe and UdpSim.
 
 ### Try it with the examples
 
 1. Run **DiagProbe** (`build/DiagProbe/DiagProbe`).
 2. Open `examples/BodyECU.uscxml` with **File → Open Diagnostic Description** (Ctrl+O) and `examples/Vehicle.ffxml` with **File → Open Database** (Ctrl+Shift+O).
-3. Run an ECU that implements `BodyECU.uscxml` (for example your own UDS server): it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
+3. Start the simulated ECU in a terminal: `build/UdpSim/UdpSim` (see [UdpSim](#udpsim--a-simulated-ecu) below). Your own ECU works just as well, if it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
 4. Press **Start** (F9).
 5. Try a little scenario:
    - read **0xF190 VIN**;
@@ -187,6 +210,7 @@ AutoForge/
 ├── FrameForge/    app: message database editor
 ├── UDScribe/      app: diagnostic description editor
 ├── DiagProbe/     app: tester, UDP bus, windows
+├── UdpSim/        simulated BodyECU on UDP: plain C++17, no Qt
 ├── examples/      Vehicle.ffxml, BodyECU.uscxml
 └── docs/          screenshots
 ```
