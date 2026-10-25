@@ -100,6 +100,12 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     m_requestTree = new QTreeWidget;
     m_requestTree->setHeaderHidden(true);
     connect(m_requestTree, &QTreeWidget::currentItemChanged, this, &DiagnosticConsole::showSelectedRequest);
+    // Double-clicking a request sends it, like its button (headings only fold open and closed).
+    connect(m_requestTree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item) {
+        if (item == m_requestTree->currentItem() && selectedRequest().kind != RequestKind::None
+            && m_sendButton->isEnabled())
+            send();
+    });
 
     m_title = new QLabel;
     QFont titleFont = m_title->font();
