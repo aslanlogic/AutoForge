@@ -54,10 +54,10 @@ GeneratorWindow::GeneratorWindow(Tester *tester, QWidget *parent)
     m_list->setSelectionMode(QAbstractItemView::SingleSelection);
     m_list->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_list->horizontalHeader()->setSectionResizeMode(DataColumn, QHeaderView::Stretch);
-    m_list->setColumnWidth(MessageColumn, 130);
-    m_list->setColumnWidth(IdColumn, 60);
+    m_list->setColumnWidth(MessageColumn, 140);
+    m_list->setColumnWidth(IdColumn, 70);
     m_list->setColumnWidth(ModeColumn, 85);
-    m_list->setColumnWidth(CycleColumn, 85);
+    m_list->setColumnWidth(CycleColumn, 100);
     m_list->setColumnWidth(ActionColumn, 70);
     connect(m_list, &QTableWidget::itemSelectionChanged, this, &GeneratorWindow::showSignals);
 

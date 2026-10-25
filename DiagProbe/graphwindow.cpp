@@ -209,10 +209,12 @@ protected:
         const double startTime = endTime - span;
         auto xOf = [&](double t) { return plot.left() + (t - startTime) / span * plot.width(); };
 
-        // Time grid and labels, in steps of 1, 2 or 5 times a power of ten.
-        const double rough = span / 8.0;
+        // Time grid and labels, in steps of 1, 2 or 5 times a power of ten, at least
+        // about 70 px apart so the labels never overlap, however narrow the plot.
+        const double rough = span * qMax(70.0 / plot.width(), 1.0 / 10.0);
         const double power = std::pow(10.0, std::floor(std::log10(rough)));
-        const double step = rough / power < 2 ? power : rough / power < 5 ? 2 * power : 5 * power;
+        const double mantissa = rough / power; // 1 .. 10; round up, so labels are never closer
+        const double step = (mantissa <= 1 ? 1 : mantissa <= 2 ? 2 : mantissa <= 5 ? 5 : 10) * power;
         const int decimals = step >= 1 ? 0 : int(std::ceil(-std::log10(step) - 1e-9));
         for (double t = std::ceil(startTime / step) * step; t <= endTime + 1e-9; t += step) {
             painter.setPen(QColor(225, 225, 225));
@@ -505,7 +507,7 @@ GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
     m_legend->header()->setStretchLastSection(false);
     m_legend->header()->setSectionResizeMode(QHeaderView::Interactive);
     m_legend->header()->setSectionResizeMode(2, QHeaderView::Fixed);
-    m_legend->setColumnWidth(0, 120);
+    m_legend->setColumnWidth(0, 140);
     m_legend->setColumnWidth(1, 110);
     m_legend->setColumnWidth(2, 28);
     connect(m_legend, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
@@ -520,7 +522,7 @@ GraphWindow::GraphWindow(Tester *tester, QWidget *parent)
     splitter->addWidget(m_plot);
     splitter->addWidget(m_legend);
     splitter->setStretchFactor(0, 1);
-    splitter->setSizes({520, 230});
+    splitter->setSizes({520, 290}); // the legend's columns are 140 + 110 + 28 px
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);

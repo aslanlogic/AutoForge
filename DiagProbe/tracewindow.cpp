@@ -46,7 +46,7 @@ TraceWindow::TraceWindow(Tester *tester, QWidget *parent)
     m_byMessage->setColumnWidth(DirColumn, 36);
     m_byMessage->setColumnWidth(DlcColumn, 40);
     m_byMessage->setColumnWidth(DataColumn, 300);
-    m_byMessage->setColumnWidth(CycleColumn, 80);
+    m_byMessage->setColumnWidth(CycleColumn, 95);
     m_byMessage->setColumnWidth(CountColumn, 60);
     // Every column keeps its width until the user drags it, also when the window is resized.
     m_byMessage->header()->setStretchLastSection(false);
