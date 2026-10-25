@@ -76,11 +76,10 @@ QString chip(const QString &text, bool met, bool known, quint8 nrc)
     const QString background = !known ? "#e4e4e4" : met ? "#d6f0d6" : "#f6d4d4";
     const QString foreground = !known ? "#444444" : met ? "#1d5e1d" : "#8a1c1c";
     const QString mark = !known ? QString() : met ? QString("✔ ") : QString("✘ ");
-    QString content = mark + text;
+    // A chip wraps only before its NRC, so a long one cannot make the panel wide.
+    QString content = (mark + text).toHtmlEscaped().replace(' ', "&nbsp;");
     if (known && !met && nrc != 0)
-        content += " → NRC " + nrcText(nrc);
-    // A chip only wraps between chips, never inside.
-    content = content.toHtmlEscaped().replace(' ', "&nbsp;");
+        content += " → NRC&nbsp;" + nrcText(nrc).toHtmlEscaped();
     return QString("<span style=\"background-color:%1; color:%2;\">&nbsp;%3&nbsp;</span>")
         .arg(background, foreground, content);
 }
@@ -121,6 +120,9 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     m_requestBytes = new QLabel;
     m_responseBytes = new QLabel;
     m_responseText = new QLabel;
+    // Long words (NRC names, unbroken hex) must not stop the panel from getting narrower.
+    for (QLabel *label : {m_title, m_prerequisites, m_requestBytes, m_responseBytes, m_responseText})
+        label->setMinimumWidth(1);
     for (QLabel *label : {m_requestBytes, m_responseBytes, m_responseText}) {
         label->setTextInteractionFlags(Qt::TextSelectableByMouse);
         label->setWordWrap(true);
@@ -137,12 +139,14 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     panelLayout->addWidget(m_title);
     panelLayout->addWidget(m_prerequisites);
     panelLayout->addWidget(m_valuesLabel);
-    panelLayout->addWidget(m_valueTable, 1);
+    panelLayout->addWidget(m_valueTable, 3);
     panelLayout->addLayout(sendRow);
     panelLayout->addWidget(m_requestBytes);
     panelLayout->addWidget(m_responseBytes);
     panelLayout->addWidget(m_responseText);
-    panelLayout->addWidget(m_decodedTable, 2);
+    panelLayout->addWidget(m_decodedTable, 6);
+    // Takes the free space when the tables are hidden, so the labels stay together at the top.
+    panelLayout->addStretch(1);
 
     auto *top = new QSplitter(Qt::Horizontal);
     top->addWidget(m_requestTree);
@@ -444,7 +448,7 @@ void DiagnosticConsole::updatePrerequisites()
     case RequestKind::None:
         break;
     }
-    QString text = chips.join("&nbsp;&nbsp;");
+    QString text = chips.join(" &nbsp;"); // the chips wrap between each other
     if (!known)
         text += "<br><span style=\"color:#777777;\">Start the measurement to send requests.</span>";
     m_prerequisites->setText(text);
