@@ -17,7 +17,9 @@
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QMenuBar>
+#include <QCloseEvent>
 #include <QSettings>
+#include <QTemporaryDir>
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QTimer>
@@ -59,6 +61,8 @@ MainWindow::MainWindow(QWidget *parent)
     updateMeasurementActions();
     updateStatus();
     updateTitle();
+    // What there is once the window is up counts as saved: closing right away asks nothing.
+    QTimer::singleShot(0, this, &MainWindow::markConfigurationSaved);
 }
 
 void MainWindow::setupWindows()
@@ -236,6 +240,8 @@ QList<QPair<QString, QMdiSubWindow *>> MainWindow::namedWindows() const
 
 void MainWindow::openConfiguration()
 {
+    if (!maybeSaveConfiguration())
+        return;
     const QString filePath = QFileDialog::getOpenFileName(this, "Open Configuration", QString(),
                                                           "DiagProbe configurations (*.dpcfg);;All files (*)");
     if (!filePath.isEmpty())
@@ -264,40 +270,14 @@ bool MainWindow::saveConfigurationTo(const QString &filePath)
 {
     QFile::remove(filePath); // QSettings would otherwise keep keys that are no longer used
     QSettings settings(filePath, QSettings::IniFormat);
-    // Paths are saved relative to the configuration, so the setup can move with its files.
-    const QDir directory = QFileInfo(filePath).absoluteDir();
-    settings.beginGroup("DiagProbe");
-    settings.setValue("version", 1);
-    settings.setValue("diagnosticDescription", m_diagnosticDescriptionPath.isEmpty()
-                          ? QString() : directory.relativeFilePath(m_diagnosticDescriptionPath));
-    settings.setValue("database", m_messageDatabasePath.isEmpty()
-                          ? QString() : directory.relativeFilePath(m_messageDatabasePath));
-    settings.setValue("simulateEcu", m_simulateAction->isChecked());
-    settings.setValue("testerPresent", m_testerPresentAction->isChecked());
-    settings.setValue("mainWindow", saveGeometry());
-    settings.endGroup();
-
-    for (const auto &named : namedWindows()) {
-        settings.beginGroup("Window." + named.first);
-        settings.setValue("geometry", named.second->geometry());
-        settings.setValue("visible", named.second->isVisible());
-        settings.setValue("minimized", named.second->isMinimized());
-        settings.setValue("maximized", named.second->isMaximized());
-        settings.endGroup();
-    }
-    settings.beginGroup("Graphics");
-    m_graph->saveSettings(settings);
-    settings.endGroup();
-    settings.beginGroup("InteractiveGenerator");
-    m_generator->saveSettings(settings);
-    settings.endGroup();
-
+    writeConfiguration(settings, QFileInfo(filePath).absoluteDir());
     settings.sync();
     if (settings.status() != QSettings::NoError) {
         QMessageBox::warning(this, "Save Configuration", QString("Could not save %1.").arg(filePath));
         return false;
     }
     m_configurationPath = filePath;
+    markConfigurationSaved();
     updateTitle();
     statusBar()->showMessage("Saved " + QFileInfo(filePath).fileName(), 3000);
     return true;
@@ -350,8 +330,86 @@ bool MainWindow::loadConfiguration(const QString &filePath)
     settings.endGroup();
 
     m_configurationPath = filePath;
+    markConfigurationSaved();
     updateTitle();
     return true;
+}
+
+void MainWindow::writeConfiguration(QSettings &settings, const QDir &directory) const
+{
+    // Paths are saved relative to the configuration, so the setup can move with its files.
+    settings.beginGroup("DiagProbe");
+    settings.setValue("version", 1);
+    settings.setValue("diagnosticDescription", m_diagnosticDescriptionPath.isEmpty()
+                          ? QString() : directory.relativeFilePath(m_diagnosticDescriptionPath));
+    settings.setValue("database", m_messageDatabasePath.isEmpty()
+                          ? QString() : directory.relativeFilePath(m_messageDatabasePath));
+    settings.setValue("simulateEcu", m_simulateAction->isChecked());
+    settings.setValue("testerPresent", m_testerPresentAction->isChecked());
+    settings.setValue("mainWindow", saveGeometry());
+    settings.endGroup();
+
+    for (const auto &named : namedWindows()) {
+        settings.beginGroup("Window." + named.first);
+        settings.setValue("geometry", named.second->geometry());
+        settings.setValue("visible", named.second->isVisible());
+        settings.setValue("minimized", named.second->isMinimized());
+        settings.setValue("maximized", named.second->isMaximized());
+        settings.endGroup();
+    }
+    settings.beginGroup("Graphics");
+    m_graph->saveSettings(settings);
+    settings.endGroup();
+    settings.beginGroup("InteractiveGenerator");
+    m_generator->saveSettings(settings);
+    settings.endGroup();
+}
+
+QByteArray MainWindow::configurationSnapshot() const
+{
+    // What saving would write now, to compare with what was saved. The main window's
+    // own geometry is left out: it changes by itself when the window first appears.
+    QTemporaryDir temporary;
+    const QString filePath = temporary.filePath("snapshot.dpcfg");
+    {
+        QSettings settings(filePath, QSettings::IniFormat);
+        const QDir directory = m_configurationPath.isEmpty() ? QDir::root()
+                                                             : QFileInfo(m_configurationPath).absoluteDir();
+        writeConfiguration(settings, directory);
+        settings.remove("DiagProbe/mainWindow");
+    }
+    QFile file(filePath);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+void MainWindow::markConfigurationSaved()
+{
+    m_savedSnapshot = configurationSnapshot();
+}
+
+bool MainWindow::maybeSaveConfiguration()
+{
+    if (configurationSnapshot() == m_savedSnapshot)
+        return true;
+    const QString name = m_configurationPath.isEmpty() ? QString("The configuration")
+                                                       : QFileInfo(m_configurationPath).fileName();
+    const auto answer = QMessageBox::question(this, "DiagProbe",
+                                              name + " has unsaved changes.\nDo you want to save them?",
+                                              QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+                                              QMessageBox::Save);
+    if (answer == QMessageBox::Save)
+        return saveConfiguration();
+    return answer == QMessageBox::Discard;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (maybeSaveConfiguration()) {
+        m_tester->stop();
+        event->accept();
+    } else {
+        event->ignore();
+    }
 }
 
 void MainWindow::startOrStopMeasurement()

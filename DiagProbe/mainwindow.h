@@ -16,6 +16,8 @@ class EcuStateWindow;
 class GeneratorWindow;
 class GraphWindow;
 class QAction;
+class QDir;
+class QSettings;
 class QLabel;
 class QMdiArea;
 class QMdiSubWindow;
@@ -42,6 +44,10 @@ public:
 
     Tester *tester() const { return m_tester; }
 
+protected:
+    // Asks to save the configuration if it has changed.
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     void setupWindows();
     void setupMenus();
@@ -56,6 +62,12 @@ private:
     bool saveConfigurationAs();
     bool loadConfiguration(const QString &filePath);
     bool saveConfigurationTo(const QString &filePath);
+    void writeConfiguration(QSettings &settings, const QDir &directory) const;
+    // Unsaved changes are found by comparing what would be saved with what was saved.
+    QByteArray configurationSnapshot() const;
+    void markConfigurationSaved();
+    // Asks to save unsaved changes; false if the user cancels.
+    bool maybeSaveConfiguration();
     // The sub-windows by the names a configuration uses for them.
     QList<QPair<QString, QMdiSubWindow *>> namedWindows() const;
     void startOrStopMeasurement();
@@ -70,6 +82,7 @@ private:
     QString m_diagnosticDescriptionPath; // empty until one is opened
     QString m_messageDatabasePath;       // empty until one is opened
     QString m_configurationPath;         // empty until one is opened or saved
+    QByteArray m_savedSnapshot;          // configurationSnapshot() when last saved or opened
 
     Tester *m_tester = nullptr;
 
