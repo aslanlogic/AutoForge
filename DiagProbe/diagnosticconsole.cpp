@@ -178,7 +178,22 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
 
     auto *vertical = new QSplitter(Qt::Vertical);
     vertical->addWidget(top);
-    vertical->addWidget(m_log);
+    // The log with a Clear button above it. Clearing keeps each request's last response on the right.
+    auto *clearLog = new QPushButton("Clear");
+    clearLog->setToolTip("Empty the log");
+    connect(clearLog, &QPushButton::clicked, this, [this] { m_log->setRowCount(0); });
+    auto *logBar = new QHBoxLayout;
+    logBar->setContentsMargins(4, 2, 4, 0);
+    logBar->addWidget(new QLabel("Log"));
+    logBar->addStretch();
+    logBar->addWidget(clearLog);
+    auto *logPanel = new QWidget;
+    auto *logLayout = new QVBoxLayout(logPanel);
+    logLayout->setContentsMargins(0, 0, 0, 0);
+    logLayout->setSpacing(2);
+    logLayout->addLayout(logBar);
+    logLayout->addWidget(m_log);
+    vertical->addWidget(logPanel);
     vertical->setChildrenCollapsible(false);
     vertical->setStretchFactor(0, 3);
     vertical->setStretchFactor(1, 1);
