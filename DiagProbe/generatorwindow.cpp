@@ -124,11 +124,6 @@ void GeneratorWindow::setDatabase(const ff::Database *database)
     if (database) {
         for (const ff::Message &message : database->allMessages())
             m_addCombo->addItem(message.name + "  (" + usc::idToText(message.frameId) + ')', message.id);
-        for (const ff::Message &message : database->allMessages()) {
-            const ff::Node *transmitter = database->findNode(message.transmitterId);
-            if (transmitter && transmitter->name.compare("Tester", Qt::CaseInsensitive) == 0)
-                addMessage(message.id);
-        }
     }
     rebuildList();
 }

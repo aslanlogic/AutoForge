@@ -69,7 +69,7 @@ Everything for talking to the ECU, in one window.
 
 <img src="docs/screenshots/diagprobe-generator.png" alt="Interactive generator" width="100%">
 
-Send `.ffxml` messages once or cyclically. Edit their signals in physical values or by value-table name; the payload follows at once. A raw frame row sends any ID and bytes. Messages the `Tester` node transmits are in the list from the start.
+Send `.ffxml` messages once or cyclically. Edit their signals in physical values or by value-table name; the payload follows at once. A raw frame row sends any ID and bytes. The list starts empty: add messages with **Add message**.
 
 ### Desktops
 

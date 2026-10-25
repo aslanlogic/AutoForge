@@ -16,8 +16,8 @@ class QTimer;
 class Tester;
 
 // The Interactive generator: sends bus messages of the .ffxml, like CANoe's IG.
-//  - Transmit list: the messages to send, each once or cyclically. The messages
-//    the "Tester" node transmits are in it from the start; add others with Add.
+//  - Transmit list: the messages to send, each once or cyclically. It starts
+//    empty; add messages with Add message.
 //  - Signal editor: the signals of the selected message, in physical values or
 //    by value table name; the payload follows at once.
 //  - Raw frame: any ID and bytes.
@@ -29,7 +29,7 @@ class GeneratorWindow : public QWidget
 public:
     explicit GeneratorWindow(Tester *tester, QWidget *parent = nullptr);
 
-    // Empties the transmit list and fills it with the Tester node's messages.
+    // Empties the transmit list and offers the database's messages to add.
     void setDatabase(const ff::Database *database);
     // Adds a message to the transmit list; false if unknown.
     bool addMessage(int messageId);
