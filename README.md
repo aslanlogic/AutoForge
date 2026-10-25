@@ -78,6 +78,7 @@ Like CANoe, the windows live on **desktops**: tabs above the window area, each w
 - Double-click a tab to rename it; right-click it to rename or close it. Closing a desktop moves its windows to the next one.
 - Right-click a desktop's empty area (or its tab) → **Add Window**, or **Windows → Add Window to This Desktop**, brings a window to it from wherever it is, and reopens it if it was closed.
 - **Windows → Move Active Window to Desktop**, or the window's own title bar menu, moves a window to another desktop.
+- Right-click a tab → **Move to Separate Window** puts that desktop in a window of its own, for example on a second monitor. Close that window (or press **Back to Tabs**) to put it back. Shortcuts such as F9 and Ctrl+S work there too.
 - The Windows menu takes you to a window's desktop, and Tile and Cascade arrange the current desktop.
 
 ### Configurations
@@ -88,7 +89,7 @@ Like CANoe, the windows live on **desktops**: tabs above the window area, each w
 - the plotted signals, axis mode and span;
 - the generator's transmit list with modes, cycle times and signal values;
 - the toolbar switches;
-- the desktops and which windows are on each.
+- the desktops, which windows are on each, and which desktops are separate windows (and where).
 
 Open it again with **File → Open Configuration** or `DiagProbe setup.dpcfg`.
 

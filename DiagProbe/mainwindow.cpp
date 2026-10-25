@@ -44,6 +44,13 @@ MainWindow::MainWindow(QWidget *parent)
     setupWindows();
     setupMenus();
     setupToolBar();
+    // Shortcuts (F9, Ctrl+S, ...) work in desktops moved to a separate window too.
+    QList<QAction *> shortcuts;
+    for (QAction *action : findChildren<QAction *>()) {
+        if (!action->shortcut().isEmpty())
+            shortcuts << action;
+    }
+    m_desktops->setSharedActions(shortcuts);
 
     m_descriptionLabel = new QLabel;
     m_databaseLabel = new QLabel;
@@ -72,7 +79,7 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::setupWindows()
 {
     auto addWindow = [this](QWidget *widget, const QString &title, const QRect &geometry) {
-        QMdiSubWindow *window = m_desktops->area(0)->addSubWindow(widget);
+        QMdiSubWindow *window = m_desktops->desktopArea(0)->addSubWindow(widget);
         window->setWindowTitle(title);
         window->setAttribute(Qt::WA_DeleteOnClose, false); // closing only hides it
         window->setGeometry(geometry);
@@ -338,7 +345,7 @@ bool MainWindow::loadConfiguration(const QString &filePath)
     for (const auto &named : namedWindows()) {
         settings.beginGroup("Window." + named.first);
         QMdiSubWindow *window = named.second;
-        m_desktops->moveWindow(window, qBound(0, settings.value("desktop", 0).toInt(), m_desktops->count() - 1));
+        m_desktops->moveWindow(window, qBound(0, settings.value("desktop", 0).toInt(), m_desktops->desktopCount() - 1));
         if (settings.contains("geometry")) {
             window->widget()->show();
             window->showNormal();
@@ -352,6 +359,7 @@ bool MainWindow::loadConfiguration(const QString &filePath)
         }
         settings.endGroup();
     }
+    m_desktops->restoreDetached(settings); // after the windows are on their desktops
     m_desktops->setCurrentIndex(qBound(0, settings.value("Desktops/current", 0).toInt(), m_desktops->count() - 1));
     settings.beginGroup("Graphics");
     m_graph->loadSettings(settings);
@@ -383,6 +391,7 @@ void MainWindow::writeConfiguration(QSettings &settings, const QDir &directory) 
 
     settings.setValue("Desktops/names", m_desktops->desktopNames());
     settings.setValue("Desktops/current", m_desktops->currentIndex());
+    m_desktops->saveDetached(settings);
     for (const auto &named : namedWindows()) {
         settings.beginGroup("Window." + named.first);
         settings.setValue("desktop", m_desktops->desktopOf(named.second));
