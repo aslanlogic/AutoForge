@@ -7,6 +7,8 @@
 #include <QTabBar>
 #include <QToolButton>
 
+#include <algorithm>
+
 DesktopTabs::DesktopTabs(QWidget *parent)
     : QTabWidget(parent)
 {
@@ -35,6 +37,9 @@ QMdiArea *DesktopTabs::addDesktop(const QString &name)
     auto *area = new QMdiArea;
     area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    area->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(area, &QMdiArea::customContextMenuRequested, this,
+            [this, area](const QPoint &position) { showAreaMenu(area, position); });
     addTab(area, name);
     return area;
 }
@@ -106,6 +111,31 @@ void DesktopTabs::fillMoveMenu(QMenu *menu, QMdiSubWindow *window)
     }
 }
 
+void DesktopTabs::fillAddMenu(QMenu *menu, int desktopIndex)
+{
+    menu->clear();
+    QList<QMdiSubWindow *> windows = allWindows();
+    std::sort(windows.begin(), windows.end(), [](const QMdiSubWindow *a, const QMdiSubWindow *b) {
+        return a->windowTitle() < b->windowTitle();
+    });
+    for (QMdiSubWindow *window : windows) {
+        const int current = desktopOf(window);
+        const bool here = current == desktopIndex;
+        // Where it is now, so it is clear that adding it here takes it away from there.
+        QString where;
+        if (window->isHidden())
+            where = here ? " (closed)" : QString(" (closed, on %1)").arg(tabText(current));
+        else if (!here)
+            where = QString(" (on %1)").arg(tabText(current));
+        QAction *action = menu->addAction(window->windowTitle() + where);
+        action->setEnabled(!here || window->isHidden()); // already open here: nothing to do
+        connect(action, &QAction::triggered, this, [this, window, desktopIndex] {
+            moveWindow(window, desktopIndex);
+            showWindow(window);
+        });
+    }
+}
+
 void DesktopTabs::setDesktops(QStringList names)
 {
     if (names.isEmpty())
@@ -167,6 +197,35 @@ void DesktopTabs::showTabMenu(const QPoint &position)
             close->setToolTip("The last desktop cannot be closed");
         menu.addSeparator();
     }
+    if (index >= 0) {
+        QMenu *add = menu.addMenu("Add Window");
+        fillAddMenu(add, index);
+        menu.addSeparator();
+    }
     menu.addAction("New Desktop", this, [this] { setCurrentWidget(addDesktop(newDesktopName())); });
     menu.exec(tabBar()->mapToGlobal(position));
+}
+
+void DesktopTabs::showAreaMenu(QMdiArea *area, const QPoint &position)
+{
+    // Only on the empty area, not on a window (whose own right-clicks end up here too).
+    for (QMdiSubWindow *window : area->subWindowList()) {
+        if (window->isVisible() && window->geometry().contains(position))
+            return;
+    }
+    QMenu menu;
+    QMenu *add = menu.addMenu("Add Window");
+    fillAddMenu(add, indexOf(area));
+    menu.addSeparator();
+    menu.addAction("Tile", area, &QMdiArea::tileSubWindows);
+    menu.addAction("Cascade", area, &QMdiArea::cascadeSubWindows);
+    menu.exec(area->viewport()->mapToGlobal(position)); // positions are relative to the viewport
+}
+
+QList<QMdiSubWindow *> DesktopTabs::allWindows() const
+{
+    QList<QMdiSubWindow *> windows;
+    for (int i = 0; i < count(); ++i)
+        windows += area(i)->subWindowList();
+    return windows;
 }

@@ -125,6 +125,10 @@ void MainWindow::setupMenus()
     windowsMenu->addAction("&Interactive Generator", this, [this] { showWindow(m_generatorWindow); });
     windowsMenu->addAction("&Graphics", this, [this] { showWindow(m_graphWindow); });
     windowsMenu->addSeparator();
+    QMenu *addMenu = windowsMenu->addMenu("A&dd Window to This Desktop");
+    connect(addMenu, &QMenu::aboutToShow, this, [this, addMenu] {
+        m_desktops->fillAddMenu(addMenu, m_desktops->currentIndex());
+    });
     QMenu *moveMenu = windowsMenu->addMenu("&Move Active Window to Desktop");
     connect(moveMenu, &QMenu::aboutToShow, this, [this, moveMenu] {
         m_desktops->fillMoveMenu(moveMenu, m_desktops->currentArea()->activeSubWindow());

@@ -76,6 +76,7 @@ Send `.ffxml` messages once or cyclically. Edit their signals in physical values
 Like CANoe, the windows live on **desktops**: tabs above the window area, each with its own windows and layout, for example *Diagnostics* with the console and ECU state, and *Bus* with Trace and Graphics.
 - **+** (or a double-click on the empty tab bar) adds a desktop.
 - Double-click a tab to rename it; right-click it to rename or close it. Closing a desktop moves its windows to the next one.
+- Right-click a desktop's empty area (or its tab) → **Add Window**, or **Windows → Add Window to This Desktop**, brings a window to it from wherever it is, and reopens it if it was closed.
 - **Windows → Move Active Window to Desktop**, or the window's own title bar menu, moves a window to another desktop.
 - The Windows menu takes you to a window's desktop, and Tile and Cascade arrange the current desktop.
 

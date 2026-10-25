@@ -16,6 +16,8 @@ class QMenu;
 //    desktop's windows move to its neighbour, so no window is lost; the last
 //    desktop cannot be closed.
 //  - Tabs can be dragged into another order.
+//  - Right-click a desktop's empty area (or its tab) to add a window to it: the
+//    window moves there from whatever desktop it is on, and opens if it was closed.
 class DesktopTabs : public QTabWidget
 {
     Q_OBJECT
@@ -37,6 +39,8 @@ public:
     void showWindow(QMdiSubWindow *window);
     // Fills a menu with one entry per desktop that moves the window there.
     void fillMoveMenu(QMenu *menu, QMdiSubWindow *window);
+    // Fills a menu with one entry per window that brings it to this desktop.
+    void fillAddMenu(QMenu *menu, int desktopIndex);
 
     // Makes these the desktops, in this order: windows on desktops that go away
     // move to the first one. For opening a configuration. Never fewer than one.
@@ -48,6 +52,8 @@ public:
 private:
     QString newDesktopName() const;
     void showTabMenu(const QPoint &position);
+    void showAreaMenu(QMdiArea *area, const QPoint &position);
+    QList<QMdiSubWindow *> allWindows() const;
 };
 
 #endif // DESKTOPTABS_H
