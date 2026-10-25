@@ -49,6 +49,7 @@ private:
         QByteArray request;
         QByteArray response; // empty if none (yet)
         QString note;        // e.g. "No response"
+        double time = -1.0;  // s; when the response (or the timeout) came, -1 while waiting
     };
 
     Request selectedRequest() const;
@@ -61,6 +62,9 @@ private:
     void updatePrerequisites();
     void updateSendButton();
     void updateExchange();
+    // Highlights the response for a moment, so a new one is seen even with the same bytes.
+    void flashResponse();
+    void applyResponseStyle();
     void send();
     bool buildWriteRequest(int dataIdentifierId, QByteArray *request, QString *errorMessage) const;
 
@@ -86,6 +90,9 @@ private:
     QTableWidget *m_decodedTable;
     QTableWidget *m_log;
 
+    QString m_responseColor;       // style of the response text: green, orange or red
+    bool m_responseNegative = false;
+    int m_flashCount = 0;          // flashes started; only the last one ends the highlight
     QHash<QString, Exchange> m_exchanges;     // by keyOfMessage()
     QHash<quint16, QByteArray> m_lastRecords; // DID -> data record last read or written
 };

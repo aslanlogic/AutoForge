@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QSplitter>
 #include <QTableWidget>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -484,12 +485,17 @@ void DiagnosticConsole::updateExchange()
     m_requestBytes->setText("Request:   " + hexBytes(exchange.request));
     const bool negative = isNegativeResponse(exchange.response);
     const bool pending = negative && exchange.response.size() >= 3 && quint8(exchange.response[2]) == 0x78;
-    m_responseBytes->setText("Response:  " + (exchange.response.isEmpty() ? QString("—") : hexBytes(exchange.response)));
+    if (exchange.time < 0) {
+        m_responseBytes->setText("Response:  waiting…");
+    } else {
+        const QString at = QString("Response at %1 s:").arg(exchange.time, 0, 'f', 3);
+        m_responseBytes->setText(at + "  " + (exchange.response.isEmpty() ? QString("—") : hexBytes(exchange.response)));
+    }
     m_responseText->setText(exchange.note.isEmpty() ? describeUds(m_description, exchange.response) : exchange.note);
-    const QString color = pending ? "color:#be6e00;"
-                        : (negative || !exchange.note.isEmpty()) ? "color:#c81e1e;" : "color:#1d5e1d;";
-    m_responseText->setStyleSheet(color);
-    m_responseBytes->setStyleSheet(negative ? color : QString());
+    m_responseColor = pending ? "color:#be6e00;"
+                    : (negative || !exchange.note.isEmpty()) ? "color:#c81e1e;" : "color:#1d5e1d;";
+    m_responseNegative = negative || !exchange.note.isEmpty();
+    applyResponseStyle();
 
     // The decoded values: of the data record read, or written.
     QVector<DecodedValue> values;
@@ -523,6 +529,25 @@ void DiagnosticConsole::updateExchange()
     }
     m_decodedTable->resizeColumnsToContents();
     m_decodedTable->horizontalHeader()->setStretchLastSection(true);
+}
+
+void DiagnosticConsole::flashResponse()
+{
+    const int flash = ++m_flashCount;
+    applyResponseStyle();
+    QTimer::singleShot(600, this, [this, flash] {
+        if (flash == m_flashCount) {
+            m_flashCount = 0; // the highlight ends
+            applyResponseStyle();
+        }
+    });
+}
+
+void DiagnosticConsole::applyResponseStyle()
+{
+    const QString highlight = m_flashCount > 0 ? "background-color:#fff0a0;" : QString();
+    m_responseText->setStyleSheet(m_responseColor + highlight);
+    m_responseBytes->setStyleSheet((m_responseNegative ? m_responseColor : QString()) + highlight);
 }
 
 void DiagnosticConsole::send()
@@ -590,7 +615,7 @@ void DiagnosticConsole::onRequestSent(double time, const QByteArray &request)
         return;
     const QString key = keyOfMessage(request);
     if (!key.isEmpty())
-        m_exchanges.insert(key, Exchange{request, QByteArray(), QString()});
+        m_exchanges.insert(key, Exchange{request, QByteArray(), QString(), -1.0});
     addLogRow(time, "Tx", request, describeUds(m_description, request), key, QColor());
     if (key == keyOf(selectedRequest()))
         updateExchange();
@@ -604,7 +629,7 @@ void DiagnosticConsole::onResponseReceived(double time, const QByteArray &reques
     const bool negative = isNegativeResponse(response);
     const bool pending = negative && response.size() >= 3 && quint8(response[2]) == 0x78;
     if (!key.isEmpty())
-        m_exchanges.insert(key, Exchange{request, response, QString()});
+        m_exchanges.insert(key, Exchange{request, response, QString(), time});
     if (!negative && request.size() >= 3) {
         const quint16 didNumber = quint16((quint8(request[1]) << 8) | quint8(request[2]));
         if (quint8(response[0]) == 0x62)
@@ -614,8 +639,10 @@ void DiagnosticConsole::onResponseReceived(double time, const QByteArray &reques
     }
     addLogRow(time, "Rx", response, describeUds(m_description, response), key,
               pending ? PendingColor : negative ? ErrorColor : QColor());
-    if (key == keyOf(selectedRequest()))
+    if (key == keyOf(selectedRequest())) {
         updateExchange();
+        flashResponse();
+    }
 }
 
 void DiagnosticConsole::onRequestTimedOut(double time, const QByteArray &request)
@@ -624,11 +651,13 @@ void DiagnosticConsole::onRequestTimedOut(double time, const QByteArray &request
         return;
     const QString key = keyOfMessage(request);
     if (!key.isEmpty())
-        m_exchanges.insert(key, Exchange{request, QByteArray(), "No response within P2 / P2*."});
+        m_exchanges.insert(key, Exchange{request, QByteArray(), "No response within P2 / P2*.", time});
     addLogRow(time, "—", QByteArray(), "No response to " + serviceName(quint8(request[0])) + " (timeout)", key,
               ErrorColor);
-    if (key == keyOf(selectedRequest()))
+    if (key == keyOf(selectedRequest())) {
         updateExchange();
+        flashResponse();
+    }
 }
 
 void DiagnosticConsole::addLogRow(double time, const QString &direction, const QByteArray &bytes,
