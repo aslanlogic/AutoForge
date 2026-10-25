@@ -73,7 +73,7 @@ Send `.ffxml` messages once or cyclically. Edit their signals in physical values
 
 ### Configurations
 
-**File → Save Configuration** (Ctrl+S, or **Save** in the toolbar) stores the whole setup in a `.dpcfg` file:
+**File → Save Configuration** (Ctrl+S) stores the whole setup in a `.dpcfg` file:
 - both files, relative to the configuration, so a project folder can move;
 - every window's position, size and whether it is open;
 - the plotted signals, axis mode and span;

@@ -126,11 +126,6 @@ void MainWindow::setupToolBar()
     toolBar->setObjectName("measurementToolBar");
     toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-    QAction *saveAction = toolBar->addAction(QIcon::fromTheme("document-save"), "Save");
-    saveAction->setToolTip("Save the configuration: files, windows, graph and generator (Ctrl+S)");
-    connect(saveAction, &QAction::triggered, this, &MainWindow::saveConfiguration);
-    toolBar->addSeparator();
-
     m_startAction = toolBar->addAction(QIcon::fromTheme("media-playback-start"), "Start");
     m_startAction->setShortcut(QKeySequence("F9"));
     connect(m_startAction, &QAction::triggered, this, &MainWindow::startOrStopMeasurement);
