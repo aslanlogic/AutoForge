@@ -11,6 +11,7 @@
   <img alt="Build: qmake" src="https://img.shields.io/badge/build-qmake-blue">
   <img alt="Platform: Linux" src="https://img.shields.io/badge/platform-Linux-lightgrey?logo=linux&logoColor=white">
   <img alt="UDS: ISO 14229" src="https://img.shields.io/badge/UDS-ISO%2014229-orange">
+  <a href="LICENSE"><img alt="License: GPL v3" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
 </p>
 
 <p align="center">
@@ -194,6 +195,12 @@ Both file formats are plain, readable XML; their full structure is documented at
 - [ ] Pluggable security access key algorithms
 - [ ] More UDS services, added one at a time
 - [ ] UDP broadcast and multicast
+
+## License
+
+Copyright © 2026 aslanlogic.
+
+AutoForge is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License** as published by the Free Software Foundation, either **version 3** of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but **without any warranty**; see [`LICENSE`](LICENSE) for the full text.
 
 ---
 
