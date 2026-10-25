@@ -48,13 +48,15 @@ TraceWindow::TraceWindow(Tester *tester, QWidget *parent)
     m_byMessage->setColumnWidth(DataColumn, 300);
     m_byMessage->setColumnWidth(CycleColumn, 80);
     m_byMessage->setColumnWidth(CountColumn, 60);
+    // Every column keeps its width until the user drags it, also when the window is resized.
+    m_byMessage->header()->setStretchLastSection(false);
 
     m_chronological = new QTableWidget(0, 7);
     m_chronological->setHorizontalHeaderLabels({"Time", "ID", "Name", "Dir", "DLC", "Data", "Interpretation"});
     m_chronological->setFont(mono);
     m_chronological->verticalHeader()->hide();
     m_chronological->verticalHeader()->setDefaultSectionSize(m_chronological->fontMetrics().height() + 4);
-    m_chronological->horizontalHeader()->setStretchLastSection(true);
+    m_chronological->horizontalHeader()->setStretchLastSection(false);
     m_chronological->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_chronological->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_chronological->setColumnWidth(0, 90);
@@ -63,6 +65,7 @@ TraceWindow::TraceWindow(Tester *tester, QWidget *parent)
     m_chronological->setColumnWidth(3, 36);
     m_chronological->setColumnWidth(4, 40);
     m_chronological->setColumnWidth(5, 260);
+    m_chronological->setColumnWidth(6, 450);
 
     auto *tabs = new QTabWidget;
     tabs->addTab(m_byMessage, "By message");
