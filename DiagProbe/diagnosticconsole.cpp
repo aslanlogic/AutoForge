@@ -226,6 +226,11 @@ DiagnosticConsole::DiagnosticConsole(Tester *tester, QWidget *parent)
     connect(m_tester, &Tester::requestSent, this, &DiagnosticConsole::onRequestSent);
     connect(m_tester, &Tester::responseReceived, this, &DiagnosticConsole::onResponseReceived);
     connect(m_tester, &Tester::requestTimedOut, this, &DiagnosticConsole::onRequestTimedOut);
+    connect(m_tester, &Tester::keyFailed, this, [this](double time, const QString &error) {
+        addLogRow(time, "—", QByteArray(), "No key sent: " + error, QString(), ErrorColor);
+        m_sendStatus->setText("Cannot unlock: " + error);
+        m_sendStatus->setStyleSheet("color:#c81e1e;");
+    });
 
     showDescription(nullptr, QString());
 }
@@ -613,9 +618,14 @@ void DiagnosticConsole::send()
         if (const usc::DataIdentifier *did = m_description->findDataIdentifier(request.id))
             bytes = bytesOf({0x22, did->did >> 8, did->did});
         break;
-    case RequestKind::Unlock:
-        m_tester->unlock(request.id);
+    case RequestKind::Unlock: {
+        QString error;
+        if (!m_tester->unlock(request.id, &error)) {
+            m_sendStatus->setText("Cannot unlock: " + error);
+            m_sendStatus->setStyleSheet("color:#c81e1e;");
+        }
         return;
+    }
     case RequestKind::Write: {
         QString error;
         if (!buildWriteRequest(request.id, &bytes, &error)) {

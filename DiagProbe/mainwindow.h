@@ -1,6 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "keyalgorithm.h"
+
 #include <QMainWindow>
 
 namespace ff {
@@ -26,11 +28,12 @@ class TraceWindow;
 
 // The tester's main window: a desktop of movable windows (QMdiArea) like CANoe.
 // It holds one diagnostic description (.uscxml, the ECU to talk to) and one
-// message database (.ffxml, to decode the bus traffic). Both are only read.
+// message database (.ffxml, to decode the bus traffic). Both are only read. A key
+// algorithm plugin (see seedkey.h) computes the SecurityAccess keys.
 //
-// A configuration (.dpcfg, an INI file) saves the whole setup: both files (relative
-// to the configuration), the window layout, the Graphics signals, the Interactive
-// generator's transmit list and the toolbar switches.
+// A configuration (.dpcfg, an INI file) saves the whole setup: both files and the
+// key algorithm (relative to the configuration), the window layout, the Graphics
+// signals, the Interactive generator's transmit list and the toolbar switches.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -56,6 +59,8 @@ private:
     void openDatabase();
     bool loadDiagnosticDescription(const QString &filePath);
     bool loadDatabase(const QString &filePath);
+    void selectKeyAlgorithm();
+    bool loadKeyAlgorithm(const QString &filePath);
     void openConfiguration();
     bool saveConfiguration();
     bool saveConfigurationAs();
@@ -84,6 +89,7 @@ private:
     QByteArray m_savedSnapshot;          // configurationSnapshot() when last saved or opened
 
     Tester *m_tester = nullptr;
+    KeyAlgorithm m_keyAlgorithm;
 
     QMdiArea *m_mdiArea = nullptr;
     DiagnosticConsole *m_diagnosticConsole = nullptr;
@@ -102,6 +108,7 @@ private:
 
     QLabel *m_descriptionLabel = nullptr; // in the status bar
     QLabel *m_databaseLabel = nullptr;
+    QLabel *m_keyAlgorithmLabel = nullptr;
     QLabel *m_timeLabel = nullptr;
     QLabel *m_loadLabel = nullptr;
     QLabel *m_countLabel = nullptr;

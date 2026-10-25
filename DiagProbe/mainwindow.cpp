@@ -33,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_diagnosticDescription = new usc::Database(this);
     m_messageDatabase = new ff::Database(this);
     m_tester = new Tester(this);
+    m_tester->setKeyAlgorithm(&m_keyAlgorithm);
 
     m_mdiArea = new QMdiArea;
     m_mdiArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -45,11 +46,13 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_descriptionLabel = new QLabel;
     m_databaseLabel = new QLabel;
+    m_keyAlgorithmLabel = new QLabel;
     m_timeLabel = new QLabel;
     m_loadLabel = new QLabel;
     m_countLabel = new QLabel;
     statusBar()->addWidget(m_descriptionLabel);
     statusBar()->addWidget(m_databaseLabel);
+    statusBar()->addWidget(m_keyAlgorithmLabel);
     statusBar()->addPermanentWidget(m_timeLabel);
     statusBar()->addPermanentWidget(m_loadLabel);
     statusBar()->addPermanentWidget(m_countLabel);
@@ -98,6 +101,7 @@ void MainWindow::setupMenus()
                         this, &MainWindow::openDiagnosticDescription, QKeySequence::Open);
     fileMenu->addAction(QIcon::fromTheme("document-open"), "Open Data&base...",
                         this, &MainWindow::openDatabase, QKeySequence("Ctrl+Shift+O"));
+    fileMenu->addAction("Select &Key Algorithm...", this, &MainWindow::selectKeyAlgorithm, QKeySequence("Ctrl+K"));
     fileMenu->addSeparator();
     fileMenu->addAction(QIcon::fromTheme("document-open"), "Open &Configuration...",
                         this, &MainWindow::openConfiguration, QKeySequence("Ctrl+Shift+L"));
@@ -169,6 +173,27 @@ void MainWindow::openDatabase()
                                                           "FrameForge files (*.ffxml);;All files (*)");
     if (!filePath.isEmpty())
         loadDatabase(filePath);
+}
+
+void MainWindow::selectKeyAlgorithm()
+{
+    const QString filePath = QFileDialog::getOpenFileName(
+        this, "Select Key Algorithm", m_keyAlgorithm.filePath(),
+        "Key algorithm plugins (*.so *.dll *.dylib);;All files (*)");
+    if (!filePath.isEmpty())
+        loadKeyAlgorithm(filePath);
+}
+
+bool MainWindow::loadKeyAlgorithm(const QString &filePath)
+{
+    QString error;
+    if (!m_keyAlgorithm.load(filePath, &error)) {
+        QMessageBox::warning(this, "Select Key Algorithm", QString("Could not load %1:\n%2").arg(filePath, error));
+        updateTitle();
+        return false;
+    }
+    updateTitle();
+    return true;
 }
 
 bool MainWindow::loadDiagnosticDescription(const QString &filePath)
@@ -281,10 +306,13 @@ bool MainWindow::loadConfiguration(const QString &filePath)
     settings.beginGroup("DiagProbe");
     const QString description = settings.value("diagnosticDescription").toString();
     const QString database = settings.value("database").toString();
+    const QString keyAlgorithm = settings.value("keyAlgorithm").toString();
     if (!description.isEmpty())
         loadDiagnosticDescription(QDir::cleanPath(directory.absoluteFilePath(description)));
     if (!database.isEmpty())
         loadDatabase(QDir::cleanPath(directory.absoluteFilePath(database)));
+    if (!keyAlgorithm.isEmpty())
+        loadKeyAlgorithm(QDir::cleanPath(directory.absoluteFilePath(keyAlgorithm)));
     m_testerPresentAction->setChecked(settings.value("testerPresent", true).toBool());
     restoreGeometry(settings.value("mainWindow").toByteArray());
     settings.endGroup();
@@ -327,6 +355,8 @@ void MainWindow::writeConfiguration(QSettings &settings, const QDir &directory) 
                           ? QString() : directory.relativeFilePath(m_diagnosticDescriptionPath));
     settings.setValue("database", m_messageDatabasePath.isEmpty()
                           ? QString() : directory.relativeFilePath(m_messageDatabasePath));
+    settings.setValue("keyAlgorithm", m_keyAlgorithm.filePath().isEmpty()
+                          ? QString() : directory.relativeFilePath(m_keyAlgorithm.filePath()));
     settings.setValue("testerPresent", m_testerPresentAction->isChecked());
     settings.setValue("mainWindow", saveGeometry());
     settings.endGroup();
@@ -450,4 +480,7 @@ void MainWindow::updateTitle()
 
     m_descriptionLabel->setText("ECU: " + description);
     m_databaseLabel->setText("Database: " + database);
+    m_keyAlgorithmLabel->setText("Key algorithm: " + (m_keyAlgorithm.isLoaded()
+                                                          ? QFileInfo(m_keyAlgorithm.filePath()).fileName()
+                                                          : QString("none")));
 }

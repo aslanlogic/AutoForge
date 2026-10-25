@@ -1,6 +1,7 @@
 #include "tester.h"
 #include "decoding.h"
 #include "diagdefaults.h"
+#include "keyalgorithm.h"
 #include "udpbus.h"
 
 #include <QTimer>
@@ -123,11 +124,21 @@ bool Tester::sendRequest(const QByteArray &request)
     return true;
 }
 
-bool Tester::unlock(int securityLevelId)
+bool Tester::unlock(int securityLevelId, QString *errorMessage)
 {
+    QString error;
     const usc::SecurityLevel *level = m_description ? m_description->findSecurityLevel(securityLevelId) : nullptr;
-    if (!level || !sendRequest(bytesOf({0x27, level->requestSeed})))
+    if (!m_keyAlgorithm || !m_keyAlgorithm->isLoaded())
+        error = "No key algorithm selected (File → Select Key Algorithm).";
+    else if (!level)
+        error = "Unknown security level.";
+    else if (!sendRequest(bytesOf({0x27, level->requestSeed})))
+        error = isRunning() ? "Another request is still waiting for its response." : "The measurement is not running.";
+    if (!error.isEmpty()) {
+        if (errorMessage)
+            *errorMessage = error;
         return false;
+    }
     m_unlockLevelId = securityLevelId;
     return true;
 }
@@ -228,9 +239,16 @@ void Tester::handleResponse(const QByteArray &response)
         const quint8 subFunction = response.size() > 1 ? quint8(response[1]) : 0;
         m_unlockLevelId = 0;
         if (!negative && level && subFunction == level->requestSeed && !m_unlockedLevelIds.contains(level->id)) {
-            const QByteArray key = computeKey(response.mid(2), level->keyLength);
-            const QByteArray sendKey = bytesOf({0x27, usc::sendKey(level->requestSeed)}) + key;
-            QTimer::singleShot(0, this, [this, sendKey] { sendRequest(sendKey); });
+            QByteArray key;
+            QString error;
+            if (m_keyAlgorithm && m_keyAlgorithm->computeKey(level->requestSeed, response.mid(2), level->keyLength,
+                                                             &key, &error)) {
+                const QByteArray sendKey = bytesOf({0x27, usc::sendKey(level->requestSeed)}) + key;
+                QTimer::singleShot(0, this, [this, sendKey] { sendRequest(sendKey); });
+            } else {
+                m_lastResponse = error;
+                emit keyFailed(time(), error);
+            }
         }
     }
     emit stateChanged();

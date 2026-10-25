@@ -11,6 +11,7 @@ SOURCES += \
     ecustatewindow.cpp \
     generatorwindow.cpp \
     graphwindow.cpp \
+    keyalgorithm.cpp \
     main.cpp \
     mainwindow.cpp \
     tester.cpp \
@@ -25,7 +26,9 @@ HEADERS += \
     ecustatewindow.h \
     generatorwindow.h \
     graphwindow.h \
+    keyalgorithm.h \
     mainwindow.h \
+    seedkey.h \
     tester.h \
     tracewindow.h \
     udpbus.h

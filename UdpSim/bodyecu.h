@@ -24,7 +24,7 @@
 // request for S3 (5 s) it falls back to the default session by itself.
 // Writes in the programming session answer 0x78 (response pending) first.
 //
-// The security key algorithm is DiagProbe's placeholder (DiagProbe/diagdefaults.h):
+// The security key algorithm is the one of DiagProbe's example plugin (examples/SeedKey):
 //     key[i] = seed[i mod seedLength] XOR 0x5A XOR i
 class BodyEcu
 {

@@ -6,6 +6,7 @@
 #   UDScribe/    the diagnostic description editor (GUI)
 #   DiagProbe/   the diagnostic tester (GUI); uses both libraries
 #   UdpSim/      a simulated BodyECU on UDP for trying DiagProbe (plain C++, no Qt)
+#   examples/SeedKey/  example key algorithm plugin for DiagProbe (plain C++, no Qt)
 
 TEMPLATE = subdirs
 
@@ -15,7 +16,8 @@ SUBDIRS = \
     usccore \
     UDScribe \
     DiagProbe \
-    UdpSim
+    UdpSim \
+    examples/SeedKey
 
 # Build each library before the program that links against it.
 FrameForge.depends = ffcore

@@ -85,7 +85,7 @@ Open it again with **File → Open Configuration** or `DiagProbe setup.dpcfg`.
 ### Under the hood
 
 - **UDS client:** waits P2, or P2* after `0x78` response pending, with the timing the ECU reports in its `0x50` response. It sends TesterPresent (`3E 80`) every 2 s outside the default session and follows S3, so it knows when the ECU has fallen back to default.
-- **Unlocking:** *Request seed and send key* computes the key itself and tracks which levels the ECU has unlocked; a session change or reset locks them again.
+- **Unlocking:** *Request seed and send key* gets the seed, computes the key with the selected **key algorithm plugin** (see below) and sends it. DiagProbe tracks which levels the ECU has unlocked; a session change or reset locks them again.
 - **ECU state window:** current session, unlocked levels, S3 and the last response.
 
 **Services supported today:** `0x10` DiagnosticSessionControl · `0x11` ECUReset · `0x22` ReadDataByIdentifier · `0x27` SecurityAccess · `0x2E` WriteDataByIdentifier · `0x3E` TesterPresent. More are added as the project goes.
@@ -155,15 +155,16 @@ qmake ../AutoForge.pro
 make -j$(nproc)
 ```
 
-Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `usccore`, FrameForge, UDScribe, DiagProbe and UdpSim.
+Or open `AutoForge.pro` in Qt Creator and press Build. This builds `ffcore`, `usccore`, FrameForge, UDScribe, DiagProbe, UdpSim and the example key algorithm plugin.
 
 ### Try it with the examples
 
 1. Run **DiagProbe** (`build/DiagProbe/DiagProbe`).
 2. Open `examples/BodyECU.uscxml` with **File → Open Diagnostic Description** (Ctrl+O) and `examples/Vehicle.ffxml` with **File → Open Database** (Ctrl+Shift+O).
-3. Start the simulated ECU in a terminal: `build/UdpSim/UdpSim` (see [UdpSim](#udpsim--a-simulated-ecu) below). Your own ECU works just as well, if it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
-4. Press **Start** (F9).
-5. Try a little scenario:
+3. Select the example key algorithm, `build/examples/SeedKey/libSeedKey.so`, with **File → Select Key Algorithm** (Ctrl+K).
+4. Start the simulated ECU in a terminal: `build/UdpSim/UdpSim` (see [UdpSim](#udpsim--a-simulated-ecu) below). Your own ECU works just as well, if it listens on UDP port 5000 on this PC, answers requests on ID `0x7E0` with responses on `0x7E8` to port 5001, and uses the key algorithm below.
+5. Press **Start** (F9).
+6. Try a little scenario:
    - read **0xF190 VIN**;
    - try to write **0x0200 Odometer**: red chips, then `0x31`;
    - switch to **0x03 Extended**: `0x33` now;
@@ -197,7 +198,20 @@ DiagProbe currently talks **UDP**. Every datagram carries one whole message:
 - DiagProbe listens on `localPort` and sends to `remoteAddress:remotePort`; the ECU uses the opposite pair.
 - The **UART** framing that FrameForge and UDScribe describe is: `[ID][DLC][payload][CRC]`, COBS-encoded and ended with `0x00`, with CRC-8/16/32 in fixed, documented variants.
 
-> **Security access key:** DiagProbe uses a placeholder algorithm, which the ECU must use too: `key[i] = seed[i mod n] XOR 0x5A XOR i`, in [`DiagProbe/diagdefaults.h`](DiagProbe/diagdefaults.h). Key algorithms are tester secrets, so they are deliberately not part of the `.uscxml`.
+### Key algorithm plugins
+
+Key algorithms are tester secrets, so they are deliberately not part of the `.uscxml`. DiagProbe loads them from a **shared library** instead: select it with **File → Select Key Algorithm** (Ctrl+K). The status bar shows which one is loaded, and a configuration remembers it.
+
+A plugin exports one plain C function, declared in [`DiagProbe/seedkey.h`](DiagProbe/seedkey.h):
+
+```c
+int computeKey(unsigned char requestSeed,                 /* the level: 0x01, 0x11, ... */
+               const unsigned char *seed, int seedLength,  /* as the ECU sent it */
+               unsigned char *key, int keyLength);         /* fill keyLength bytes */
+/* returns 0 on success; anything else and DiagProbe sends no key */
+```
+
+It needs no Qt and can be written in C or C++. [`examples/SeedKey`](examples/SeedKey/seedkey.cpp) is a complete one, built with the project as `libSeedKey.so`. It holds the example BodyECU's placeholder algorithm, `key[i] = seed[i mod n] XOR 0x5A XOR i`, which UdpSim checks.
 
 ---
 
@@ -211,7 +225,7 @@ AutoForge/
 ├── UDScribe/      app: diagnostic description editor
 ├── DiagProbe/     app: tester, UDP bus, windows
 ├── UdpSim/        simulated BodyECU on UDP: plain C++17, no Qt
-├── examples/      Vehicle.ffxml, BodyECU.uscxml
+├── examples/      Vehicle.ffxml, BodyECU.uscxml, SeedKey/ (example key algorithm plugin)
 └── docs/          screenshots
 ```
 
@@ -221,7 +235,6 @@ Both file formats are plain, readable XML; their full structure is documented at
 
 - [ ] CAN on Linux: PEAK adapters / SocketCAN with ISO-TP
 - [ ] UART transport in DiagProbe
-- [ ] Pluggable security access key algorithms
 - [ ] More UDS services, added one at a time
 - [ ] UDP broadcast and multicast
 

@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QSet>
 
+class KeyAlgorithm;
 class QTimer;
 class UdpBus;
 
@@ -42,8 +43,11 @@ public:
     bool isBusy() const { return !m_pendingRequest.isEmpty(); }
     // Sends a UDS request. False if not running or busy.
     bool sendRequest(const QByteArray &request);
-    // Requests a seed for the level, computes the key and sends it.
-    bool unlock(int securityLevelId);
+    // The key algorithm plugin unlock() uses; nullptr or not loaded = none.
+    void setKeyAlgorithm(const KeyAlgorithm *keyAlgorithm) { m_keyAlgorithm = keyAlgorithm; }
+    // Requests a seed for the level, computes the key with the key algorithm and
+    // sends it. False, and why, if it cannot start.
+    bool unlock(int securityLevelId, QString *errorMessage = nullptr);
 
     void setTesterPresentEnabled(bool enabled);
     bool isTesterPresentEnabled() const { return m_testerPresentEnabled; }
@@ -68,6 +72,8 @@ signals:
     void requestSent(double time, const QByteArray &request);
     void responseReceived(double time, const QByteArray &request, const QByteArray &response);
     void requestTimedOut(double time, const QByteArray &request);
+    // unlock() got a seed but the key algorithm could not compute its key; no key is sent.
+    void keyFailed(double time, const QString &errorMessage);
     void stateChanged();
 
 private:
@@ -92,6 +98,7 @@ private:
     QByteArray m_pendingRequest;
     QTimer *m_responseTimer;
     int m_unlockLevelId = 0; // the level unlock() is busy with
+    const KeyAlgorithm *m_keyAlgorithm = nullptr;
 
     int m_sessionId = 0;
     QSet<int> m_unlockedLevelIds;
