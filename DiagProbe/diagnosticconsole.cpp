@@ -49,6 +49,14 @@ QTableWidget *makeTable(const QStringList &headers)
     return table;
 }
 
+// Lets the last column fill the table's width again. Sizing the columns to their
+// contents takes that away until the next resize, so switch it off and on.
+void stretchLastColumn(QTableWidget *table)
+{
+    table->horizontalHeader()->setStretchLastSection(false);
+    table->horizontalHeader()->setStretchLastSection(true);
+}
+
 QTableWidgetItem *readOnlyItem(const QString &text)
 {
     auto *item = new QTableWidgetItem(text);
@@ -421,7 +429,7 @@ void DiagnosticConsole::fillWriteValues(int dataIdentifierId)
     }
     m_valueTable->resizeColumnsToContents();
     m_valueTable->setColumnWidth(1, qMax(180, m_valueTable->columnWidth(1)));
-    m_valueTable->horizontalHeader()->setStretchLastSection(true);
+    stretchLastColumn(m_valueTable);
 }
 
 void DiagnosticConsole::updatePrerequisites()
@@ -549,7 +557,7 @@ void DiagnosticConsole::updateExchange()
         m_decodedTable->setItem(row, 4, readOnlyItem(value.raw));
     }
     m_decodedTable->resizeColumnsToContents();
-    m_decodedTable->horizontalHeader()->setStretchLastSection(true);
+    stretchLastColumn(m_decodedTable);
 }
 
 void DiagnosticConsole::flashResponse()
