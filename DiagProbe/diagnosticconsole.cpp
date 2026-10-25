@@ -20,7 +20,13 @@ const int KeyRole = Qt::UserRole;
 
 const QColor ErrorColor(200, 30, 30);
 const QColor PendingColor(190, 110, 0);
-const QColor QuietColor(130, 130, 130);
+
+// TesterPresent is sent by the tester on its own every few seconds; the console
+// leaves it out (the Trace window still shows it).
+bool isTesterPresent(const QByteArray &request)
+{
+    return !request.isEmpty() && quint8(request[0]) == 0x3E;
+}
 
 QTreeWidgetItem *addHeading(QTreeWidgetItem *parent, const QString &text)
 {
@@ -580,17 +586,20 @@ bool DiagnosticConsole::buildWriteRequest(int dataIdentifierId, QByteArray *requ
 
 void DiagnosticConsole::onRequestSent(double time, const QByteArray &request)
 {
+    if (isTesterPresent(request))
+        return;
     const QString key = keyOfMessage(request);
-    const bool quiet = quint8(request[0]) == 0x3E;
     if (!key.isEmpty())
         m_exchanges.insert(key, Exchange{request, QByteArray(), QString()});
-    addLogRow(time, "Tx", request, describeUds(m_description, request), key, quiet ? QuietColor : QColor());
+    addLogRow(time, "Tx", request, describeUds(m_description, request), key, QColor());
     if (key == keyOf(selectedRequest()))
         updateExchange();
 }
 
 void DiagnosticConsole::onResponseReceived(double time, const QByteArray &request, const QByteArray &response)
 {
+    if (isTesterPresent(request))
+        return;
     const QString key = keyOfMessage(request);
     const bool negative = isNegativeResponse(response);
     const bool pending = negative && response.size() >= 3 && quint8(response[2]) == 0x78;
@@ -611,6 +620,8 @@ void DiagnosticConsole::onResponseReceived(double time, const QByteArray &reques
 
 void DiagnosticConsole::onRequestTimedOut(double time, const QByteArray &request)
 {
+    if (isTesterPresent(request))
+        return;
     const QString key = keyOfMessage(request);
     if (!key.isEmpty())
         m_exchanges.insert(key, Exchange{request, QByteArray(), "No response within P2 / P2*."});
